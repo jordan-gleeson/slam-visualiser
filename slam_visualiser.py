@@ -20,25 +20,19 @@ class Robot:
 
     def move_velocity(self):
         if not self.collision_detector():
-            # print(0, self.velocity)
             self.y_pos += self.velocity[1]
             self.x_pos += self.velocity[0]
-        # print(1, self.last_velocity == self.velocity)
         if self.velocity[0] == self.last_velocity[0]:
             if self.velocity[0] > 0:
                 self.velocity[0] -= self.acceleration
             elif self.velocity[0] < 0:
                 self.velocity[0] += self.acceleration
         if self.velocity[1] == self.last_velocity[1]:
-            # print(self.velocity, self.last_velocity)
-            # print(1, self.velocity)
             if self.velocity[1] > 0:
                 self.velocity[1] -= self.acceleration
-                # print(2, self.velocity[1])
             elif self.velocity[1] < 0:
                 self.velocity[1] += self.acceleration
         self.last_velocity = self.velocity
-        # print(2, self.last_velocity == self.velocity)
 
     def change_velocity(self, keys):
         direction = self.convert_key(keys)
