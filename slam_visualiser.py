@@ -12,6 +12,7 @@ class Robot:
         self.last_velocity = [0, 0]
         self.max_velocity = 6
         self.acceleration = 1
+        self.cur_keys = []
 
     def update(self):
         self.move_velocity()
@@ -19,37 +20,68 @@ class Robot:
 
     def move_velocity(self):
         if not self.collision_detector():
+            # print(0, self.velocity)
             self.y_pos += self.velocity[1]
             self.x_pos += self.velocity[0]
-        if self.velocity == self.last_velocity:
+        # print(1, self.last_velocity == self.velocity)
+        if self.velocity[0] == self.last_velocity[0]:
             if self.velocity[0] > 0:
                 self.velocity[0] -= self.acceleration
             elif self.velocity[0] < 0:
                 self.velocity[0] += self.acceleration
+        if self.velocity[1] == self.last_velocity[1]:
+            # print(self.velocity, self.last_velocity)
+            # print(1, self.velocity)
             if self.velocity[1] > 0:
                 self.velocity[1] -= self.acceleration
+                # print(2, self.velocity[1])
             elif self.velocity[1] < 0:
                 self.velocity[1] += self.acceleration
         self.last_velocity = self.velocity
+        # print(2, self.last_velocity == self.velocity)
 
-    def change_velocity(self, direction):
+    def change_velocity(self, keys):
+        direction = self.convert_key(keys)
         if self.velocity[1] < self.max_velocity and self.velocity[1] > -self.max_velocity:
-            if direction == "DOWN":
+            if "DOWN" in direction:
                 self.velocity[1] += self.acceleration * 2
-            elif direction == "UP":
+            elif "UP" in direction:
                 self.velocity[1] -= self.acceleration * 2
         if self.velocity[0] < self.max_velocity and self.velocity[0] > -self.max_velocity:
-            if direction == "LEFT":
+            if "LEFT" in direction:
                 self.velocity[0] -= self.acceleration * 2
-            elif direction == "RIGHT":
+            elif "RIGHT" in direction:
                 self.velocity[0] += self.acceleration * 2
-        self.last_velocity = [0, 0]
+        if len(direction) > 0:
+            self.last_velocity = [0, 0]
 
     def collision_detector(self):
         return False
 
     def get_size(self):
         return (self.img.get_width(), self.img.get_height())
+
+    def convert_key(self, keys):
+        _action = False
+        _keys_to_check = [[pygame.K_LEFT, "LEFT"], [pygame.K_RIGHT, "RIGHT"], [pygame.K_UP, "UP"], [pygame.K_DOWN, "DOWN"]]
+        for i in range(len(_keys_to_check)):
+            if keys[_keys_to_check[i][0]]:
+                if _keys_to_check[i][1] not in self.cur_keys:
+                    self.cur_keys.append(_keys_to_check[i][1])
+                _action = True
+            else:
+                try:
+                    self.cur_keys.remove(_keys_to_check[i][1])
+                except ValueError:
+                    pass
+
+        if _action:
+            self.cur_keys = self.cur_keys[-2:]
+        else:
+            self.cur_keys = []
+
+        print(self.cur_keys)
+        return self.cur_keys
 
 pygame.init()
 pygame.key.set_repeat(300, 30)
@@ -92,16 +124,19 @@ while playing_game:
             playing_game = False
             break
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_DOWN:
-                robot.change_velocity("DOWN")
-            if event.key == pygame.K_UP:
-                robot.change_velocity("UP")
-            if event.key == pygame.K_LEFT:
-                robot.change_velocity("LEFT")
-            if event.key == pygame.K_RIGHT:
-                robot.change_velocity("RIGHT")
+            pass
+            # if event.key == pygame.K_DOWN:
+            #     robot.change_velocity("DOWN")
+            # if event.key == pygame.K_UP:
+            #     robot.change_velocity("UP")
+            # if event.key == pygame.K_LEFT:
+            #     robot.change_velocity("LEFT")
+            # if event.key == pygame.K_RIGHT:
+            #     robot.change_velocity("RIGHT")
 
         menu.react(event) #the menu automatically integrate your elements
+    # print(pygame.key.get_pressed())
+    robot.change_velocity(pygame.key.get_pressed())
     robot.update()
     pygame.display.update()
 
