@@ -4,10 +4,10 @@ import thorpy
 
 class Robot:
     def __init__(self, p_screen):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("roomba.jpg")
+        self.rect = self.image.get_rect()
         self.screen = p_screen
-        self.x_pos = 10
-        self.y_pos = 10
-        self.img = pygame.image.load("roomba.jpg")
         self.velocity = [0, 0]  # (x_vel, y_vel) pixels/tick
         self.last_velocity = [0, 0]
         self.max_velocity = 6
@@ -16,12 +16,12 @@ class Robot:
 
     def update(self):
         self.move_velocity()
-        self.screen.blit(self.img, (self.x_pos, self.y_pos))
+        self.screen.blit(self.image, (self.rect.x, self.rect.y))
 
     def move_velocity(self):
-        if not self.collision_detector():
-            self.y_pos += self.velocity[1]
-            self.x_pos += self.velocity[0]
+        # if not self.collision_detector():
+        self.rect.y += self.velocity[1]
+        self.rect.x += self.velocity[0]
         if self.velocity[0] == self.last_velocity[0]:
             if self.velocity[0] > 0:
                 self.velocity[0] -= self.acceleration
@@ -49,11 +49,11 @@ class Robot:
         if len(direction) > 0:
             self.last_velocity = [0, 0]
 
-    def collision_detector(self):
-        return False
+    # def collision_detector(self):
+    #     return False
 
-    def get_size(self):
-        return (self.img.get_width(), self.img.get_height())
+    # def get_size(self):
+    #     return (self.img.get_width(), self.img.get_height())
 
     def convert_key(self, keys):
         _action = False
