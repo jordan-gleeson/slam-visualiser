@@ -5,7 +5,7 @@ import thorpy
 class Robot:
     def __init__(self, p_screen):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load("roomba.jpg")
+        self.image = pygame.image.load("roomba.png")
         self.rect = self.image.get_rect()
         self.screen = p_screen
         self.velocity = [0, 0]  # (x_vel, y_vel) pixels/tick
@@ -19,41 +19,33 @@ class Robot:
         self.screen.blit(self.image, (self.rect.x, self.rect.y))
 
     def move_velocity(self):
-        # if not self.collision_detector():
         self.rect.y += self.velocity[1]
         self.rect.x += self.velocity[0]
-        if self.velocity[0] == self.last_velocity[0]:
+        if "RIGHT" not in self.cur_keys:
             if self.velocity[0] > 0:
                 self.velocity[0] -= self.acceleration
-            elif self.velocity[0] < 0:
+        if "LEFT" not in self.cur_keys:
+            if self.velocity[0] < 0:
                 self.velocity[0] += self.acceleration
-        if self.velocity[1] == self.last_velocity[1]:
+        if "DOWN" not in self.cur_keys:
             if self.velocity[1] > 0:
                 self.velocity[1] -= self.acceleration
-            elif self.velocity[1] < 0:
+        if "UP" not in self.cur_keys:
+            if self.velocity[1] < 0:
                 self.velocity[1] += self.acceleration
-        self.last_velocity = self.velocity
 
     def change_velocity(self, keys):
         direction = self.convert_key(keys)
         if self.velocity[1] < self.max_velocity and self.velocity[1] > -self.max_velocity:
             if "DOWN" in direction:
                 self.velocity[1] += self.acceleration * 2
-            elif "UP" in direction:
+            if "UP" in direction:
                 self.velocity[1] -= self.acceleration * 2
         if self.velocity[0] < self.max_velocity and self.velocity[0] > -self.max_velocity:
             if "LEFT" in direction:
                 self.velocity[0] -= self.acceleration * 2
-            elif "RIGHT" in direction:
+            if "RIGHT" in direction:
                 self.velocity[0] += self.acceleration * 2
-        if len(direction) > 0:
-            self.last_velocity = [0, 0]
-
-    # def collision_detector(self):
-    #     return False
-
-    # def get_size(self):
-    #     return (self.img.get_width(), self.img.get_height())
 
     def convert_key(self, keys):
         _action = False
@@ -89,6 +81,9 @@ background = pygame.Surface(screen.get_size())
 background = background.convert()
 background.fill((250, 250, 250))
 
+gui = pygame.Surface(screen.get_size())
+gui.set_alpha(0)
+
 pygame.draw.rect(screen, (255, 0, 0), rect)
 pygame.display.flip()
 
@@ -113,6 +108,7 @@ playing_game = True
 while playing_game:
     clock.tick(45)
     screen.blit(background, (0, 0))
+    box.blit()
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             playing_game = False
