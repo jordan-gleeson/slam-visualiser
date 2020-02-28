@@ -1,11 +1,13 @@
 #Tutorial : how to use ThorPy with a pre-existing code - step 1
 import pygame
+import time
 import thorpy
 
 class Robot:
     def __init__(self, p_screen):
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.image.load("roomba.png")
+        self.og_image = self.image
         self.rect = self.image.get_rect()
         self.screen = p_screen
         self.velocity = [0, 0]  # (x_vel, y_vel) pixels/tick
@@ -13,10 +15,27 @@ class Robot:
         self.max_velocity = 6
         self.acceleration = 1
         self.cur_keys = []
+        self.direction = 0
 
     def update(self):
-        self.move_velocity()
+        # self.move_velocity()
+        # self.screen.blit(self.image, (self.rect.x, self.rect.y))
+        pass
+
+    def rotate(self):
+        self.direction += 1
+        if self.direction > 180:
+            self.direction = -180
+        if self.direction < -180:
+            self.direction = 180
+        self.image = pygame.transform.rotate(self.og_image, self.direction)
+        # rot_rect = self.image.get_rect(center=rect.center)
         self.screen.blit(self.image, (self.rect.x, self.rect.y))
+        # rotated_image = pygame.transform.rotate(self.og_image, self.direction)
+        # new_rect = rotated_image.get_rect(center = self.og_image.get_rect(topleft = topleft).center)
+
+        # self.screen.blit(rotated_image, new_rect.topleft)
+        print(self.image.get_size())
 
     def move_velocity(self):
         self.rect.y += self.velocity[1]
@@ -115,18 +134,10 @@ while playing_game:
             break
         if event.type == pygame.KEYDOWN:
             pass
-            # if event.key == pygame.K_DOWN:
-            #     robot.change_velocity("DOWN")
-            # if event.key == pygame.K_UP:
-            #     robot.change_velocity("UP")
-            # if event.key == pygame.K_LEFT:
-            #     robot.change_velocity("LEFT")
-            # if event.key == pygame.K_RIGHT:
-            #     robot.change_velocity("RIGHT")
-
         menu.react(event) #the menu automatically integrate your elements
     # print(pygame.key.get_pressed())
-    robot.change_velocity(pygame.key.get_pressed())
+    robot.rotate()
+    # robot.change_velocity(pygame.key.get_pressed())
     robot.update()
     pygame.display.update()
 
