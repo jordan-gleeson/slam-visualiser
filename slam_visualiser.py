@@ -35,11 +35,10 @@ class Robot:
         self.rect.center = (self.x_pos, self.y_pos)
         self.velocity = [0, 0, 0]
         self.direction = 0
-        self.update(False)
+        self.update()
 
-    def update(self, move_check):
-        if not move_check:
-            self.move_velocity()
+    def update(self):
+        self.move_velocity()
         self.rotate()
         self.rect.center = (self.x_pos, self.y_pos)
         self.hitbox.x = self.x_pos - (self.image_size[0] / 2)
@@ -57,14 +56,56 @@ class Robot:
 
     def move_velocity(self):
         deceleration = self.acceleration / 2
-        if not self.collision_detector():
+        collision_list = self.collision_detector()
+        if len(collision_list) == 0:
             self.rect.y += self.velocity[1]
             self.rect.x += self.velocity[0]
         else:
-            self.rect.y -= self.velocity[1] * (self.acceleration / 10)
-            self.rect.x -= self.velocity[0] * (self.acceleration / 10)
-            # self.update(True)
-            print("2", self.velocity[1] * (self.acceleration / 10))
+            # self.rect.y =
+            # self.rect.x =
+            biggest_size = 0
+            biggest_iterator = 0
+            axis = ""
+            h_count, w_count = 0, 0
+            for i in range(len(collision_list)):
+                clip = self.hitbox.clip(
+                    self.world.wall_list[collision_list[i]])
+                # print(self.hitbox.center, clip.center)
+                # print(center_dif)
+                if clip.top == self.hitbox.top or clip.bottom == self.hitbox.bottom:
+                    h_count += 1
+                elif clip.left == self.hitbox.left or clip.right == self.hitbox.right:
+                    w_count += 1
+            print(w_count, h_count)
+            #  TODO: Shouldn't this be within the for loop?
+            if w_count > h_count:
+                if clip.height >= biggest_size:
+                    biggest_size = clip.width
+                    biggest_iterator = i
+                    axis = 'W'
+            else:
+                if clip.height >= biggest_size:
+                    biggest_size = clip.height
+                    biggest_iterator = i
+                    axis = 'H'
+            #  TODO: make collision rebound much smaller
+            worst_wall = self.world.wall_list[collision_list[biggest_iterator]]
+            if axis == 'H':
+                if self.hitbox.center[1] > worst_wall.center[1]:
+                    print("setting to clip bottom")
+                    self.rect.y = worst_wall.bottom
+                else:
+                    print("setting to clip top")
+                    self.rect.y = worst_wall.top - self.rect.height
+            else:
+                if self.hitbox.center[0] > worst_wall[0]:
+                    print("setting to clip right")
+                    self.rect.x = worst_wall.right
+                else:
+                    print("setting to clip left")
+                    self.rect.x = worst_wall.left - self.rect.width
+
+            # print("2", self.velocity[1] * (self.acceleration / 10))
         if "UP" not in self.cur_keys:
             if self.velocity[0] > 0:
                 self.velocity[0] -= deceleration
@@ -129,10 +170,14 @@ class Robot:
         return self.cur_keys
 
     def collision_detector(self):
-        for wall in self.world.wall_list:
-            if self.hitbox.colliderect(wall):
-                return True
-        return False
+        # collision_list = []
+        # for wall in self.world.wall_list:
+        #     if self.hitbox.colliderect(wall):
+        #         self.collision_list.append(wall)
+        # print(len(self.world.wall_list))
+        collision_list = self.hitbox.collidelistall(self.world.wall_list)
+        # print(collision_list)
+        return collision_list
 
 
 class World():
@@ -152,6 +197,7 @@ class World():
                     self.grid[i][j] = 0
 
     def draw(self):
+        self.wall_list = []
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
                 if self.grid[i][j]:
@@ -163,7 +209,6 @@ class World():
                     pygame.draw.rect(screen,
                                      (0, 0, 0),
                                      wall_rect)
-
 
 
 pygame.init()
@@ -186,8 +231,7 @@ pygame.display.flip()
 
 world = World(screen)
 robot = Robot(screen, world)
-robot.update(False)
-
+robot.update()
 
 
 playing_game = True
@@ -199,7 +243,7 @@ while playing_game:
             playing_game = False
             break
     robot.change_velocity(pygame.key.get_pressed())
-    robot.update(False)
+    robot.update()
     world.draw()
     pygame.display.update()
 
