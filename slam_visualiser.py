@@ -2,69 +2,76 @@
 import pygame
 import time
 import thorpy
+import numpy as np
 
 class Robot:
     def __init__(self, p_screen):
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.image.load("roomba.png")
-        self.og_image = self.image
+        self.image = pygame.transform.smoothscale(self.image, (50, 50))
+        self.og_image = self.image.copy()
         self.rect = self.image.get_rect()
+        self.x_pos = 0
+        self.y_pos = 0
         self.screen = p_screen
-        self.velocity = [0, 0]  # (x_vel, y_vel) pixels/tick
-        self.last_velocity = [0, 0]
-        self.max_velocity = 6
+        self.velocity = [0, 0, 0]  # (x_vel, y_vel) pixels/tick
+        self.last_velocity = [0, 0, 0]
+        self.max_velocity = 4
         self.acceleration = 1
         self.cur_keys = []
         self.direction = 0
+        self.angular_velocity = 4
 
     def update(self):
-        # self.move_velocity()
-        # self.screen.blit(self.image, (self.rect.x, self.rect.y))
-        pass
+        self.move_velocity()
+        self.rotate()
+        self.rect.center = (self.x_pos, self.y_pos)
+        self.screen.blit(self.image, self.rect)
 
     def rotate(self):
-        self.direction += 1
-        if self.direction > 180:
-            self.direction = -180
-        if self.direction < -180:
-            self.direction = 180
         self.image = pygame.transform.rotate(self.og_image, self.direction)
-        # rot_rect = self.image.get_rect(center=rect.center)
-        self.screen.blit(self.image, (self.rect.x, self.rect.y))
-        # rotated_image = pygame.transform.rotate(self.og_image, self.direction)
-        # new_rect = rotated_image.get_rect(center = self.og_image.get_rect(topleft = topleft).center)
-
-        # self.screen.blit(rotated_image, new_rect.topleft)
-        print(self.image.get_size())
+        self.x_pos, self.y_pos = self.rect.center
+        self.rect = self.image.get_rect()
+        self.rect.center = (self.x_pos, self.y_pos)
 
     def move_velocity(self):
+        deceleration = self.acceleration / 2
         self.rect.y += self.velocity[1]
         self.rect.x += self.velocity[0]
-        if "RIGHT" not in self.cur_keys:
-            if self.velocity[0] > 0:
-                self.velocity[0] -= self.acceleration
-        if "LEFT" not in self.cur_keys:
-            if self.velocity[0] < 0:
-                self.velocity[0] += self.acceleration
-        if "DOWN" not in self.cur_keys:
-            if self.velocity[1] > 0:
-                self.velocity[1] -= self.acceleration
         if "UP" not in self.cur_keys:
+            if self.velocity[0] > 0:
+                self.velocity[0] -= deceleration
+            if self.velocity[0] < 0:
+                self.velocity[0] += deceleration
+            if self.velocity[1] > 0:
+                self.velocity[1] -= deceleration
             if self.velocity[1] < 0:
-                self.velocity[1] += self.acceleration
+                self.velocity[1] += deceleration
+            if self.velocity[0] < deceleration and self.velocity[0] > deceleration * -1:
+                self.velocity[0] = 0
+            if self.velocity[1] < deceleration and self.velocity[1] > deceleration * -1:
+                self.velocity[1] = 0
 
     def change_velocity(self, keys):
-        direction = self.convert_key(keys)
-        if self.velocity[1] < self.max_velocity and self.velocity[1] > -self.max_velocity:
-            if "DOWN" in direction:
-                self.velocity[1] += self.acceleration * 2
-            if "UP" in direction:
-                self.velocity[1] -= self.acceleration * 2
-        if self.velocity[0] < self.max_velocity and self.velocity[0] > -self.max_velocity:
-            if "LEFT" in direction:
-                self.velocity[0] -= self.acceleration * 2
-            if "RIGHT" in direction:
-                self.velocity[0] += self.acceleration * 2
+        pressed_keys = self.convert_key(keys)
+        if "RIGHT" in pressed_keys:
+            self.direction -= 1 * self.angular_velocity
+        if "LEFT" in pressed_keys:
+            self.direction += 1 * self.angular_velocity
+        if self.direction > 180 or self.direction < -180:
+            self.direction *= -1
+        speed = self.acceleration * 2
+        self.velocity[2] = np.sqrt(np.square(self.velocity[0]) + np.square(self.velocity[1]))
+
+        x_vec = np.cos(-1 * np.deg2rad(self.direction + 90)) * speed
+        y_vec = np.sin(-1 * np.deg2rad(self.direction + 90)) * speed
+        if "UP" in pressed_keys:
+            if self.velocity[2] < self.max_velocity and self.velocity[2] > -self.max_velocity:
+                self.velocity[0] += self.acceleration * x_vec
+                self.velocity[1] += self.acceleration * y_vec
+            else:
+                self.velocity[0] = self.max_velocity * x_vec
+                self.velocity[1] = self.max_velocity * y_vec
 
     def convert_key(self, keys):
         _action = False
@@ -85,7 +92,6 @@ class Robot:
         else:
             self.cur_keys = []
 
-        print(self.cur_keys)
         return self.cur_keys
 
 pygame.init()
@@ -136,8 +142,7 @@ while playing_game:
             pass
         menu.react(event) #the menu automatically integrate your elements
     # print(pygame.key.get_pressed())
-    robot.rotate()
-    # robot.change_velocity(pygame.key.get_pressed())
+    robot.change_velocity(pygame.key.get_pressed())
     robot.update()
     pygame.display.update()
 

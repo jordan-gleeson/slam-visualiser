@@ -1,6 +1,10 @@
 # My files
 vacuumcleaner_roomba670_01_med.jpg
 settings.json
+turret_example.py
+turret.png
+roomba2.png
+roomba_design.xcf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
