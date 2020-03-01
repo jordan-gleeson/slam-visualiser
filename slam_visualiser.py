@@ -1,7 +1,6 @@
 # Tutorial : how to use ThorPy with a pre-existing code - step 1
 import pygame
 from pygame.math import Vector2
-import thorpy
 import numpy as np
 
 
@@ -10,6 +9,7 @@ class Robot:
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.image.load("roomba.png")
         self.image = pygame.transform.smoothscale(self.image, (50, 50))
+        self.image_size = self.image.get_size()
         self.og_image = self.image.copy()
         self.rect = self.image.get_rect()
         self.screen = p_screen
@@ -18,17 +18,35 @@ class Robot:
         self.y_pos = self.screen.get_size()[1] / 2
         self.rect.center = (self.x_pos, self.y_pos)
         self.velocity = [0, 0, 0]  # (x_vel, y_vel) pixels/tick
-        self.last_velocity = [0, 0, 0]
-        self.max_velocity = 4
-        self.acceleration = 1
+        self.max_velocity = 2
+        self.acceleration = 0.5
         self.cur_keys = []
         self.direction = 0
         self.angular_velocity = 4
+        self.hitbox = pygame.Rect(self.x_pos - (self.image_size[0] / 2),
+                                  self.y_pos - (self.image_size[1] / 2),
+                                  self.image_size[0],
+                                  self.image_size[1])
 
-    def update(self):
-        self.move_velocity()
+    def reset(self):
+        print("Reseting...")
+        self.x_pos = self.screen.get_size()[0] / 2
+        self.y_pos = self.screen.get_size()[1] / 2
+        self.rect.center = (self.x_pos, self.y_pos)
+        self.velocity = [0, 0, 0]
+        self.direction = 0
+        self.update(False)
+
+    def update(self, move_check):
+        if not move_check:
+            self.move_velocity()
         self.rotate()
         self.rect.center = (self.x_pos, self.y_pos)
+        self.hitbox.x = self.x_pos - (self.image_size[0] / 2)
+        self.hitbox.y = self.y_pos - (self.image_size[1] / 2)
+        self.collision_detector()
+        # print("1", self.x_pos, self.y_pos)
+        pygame.draw.rect(screen, (0, 255, 0), self.hitbox)
         self.screen.blit(self.image, self.rect)
 
     def rotate(self):
@@ -39,8 +57,14 @@ class Robot:
 
     def move_velocity(self):
         deceleration = self.acceleration / 2
-        self.rect.y += self.velocity[1]
-        self.rect.x += self.velocity[0]
+        if not self.collision_detector():
+            self.rect.y += self.velocity[1]
+            self.rect.x += self.velocity[0]
+        else:
+            self.rect.y -= self.velocity[1] * (self.acceleration / 10)
+            self.rect.x -= self.velocity[0] * (self.acceleration / 10)
+            # self.update(True)
+            print("2", self.velocity[1] * (self.acceleration / 10))
         if "UP" not in self.cur_keys:
             if self.velocity[0] > 0:
                 self.velocity[0] -= deceleration
@@ -79,9 +103,9 @@ class Robot:
 
     def convert_key(self, keys):
         _action = False
-        _keys_to_check = [[pygame.K_LEFT, "LEFT"], 
-                          [pygame.K_RIGHT, "RIGHT"], 
-                          [pygame.K_UP, "UP"], 
+        _keys_to_check = [[pygame.K_LEFT, "LEFT"],
+                          [pygame.K_RIGHT, "RIGHT"],
+                          [pygame.K_UP, "UP"],
                           [pygame.K_DOWN, "DOWN"]]
         for i in range(len(_keys_to_check)):
             if keys[_keys_to_check[i][0]]:
@@ -101,6 +125,16 @@ class Robot:
 
         return self.cur_keys
 
+    def collision_detector(self):
+        collision = False
+        for wall in self.world.wall_list:
+            if self.hitbox.colliderect(wall):
+                collision = True
+        if collision:
+            return True
+        else:
+            return False
+
 
 class World():
     def __init__(self, p_screen):
@@ -108,6 +142,7 @@ class World():
         self.size = 5
         self.grid = [[0 for _ in range(self.screen.get_size()[0] // 5)]
                      for __ in range(self.screen.get_size()[1] // 5)]
+        self.wall_list = []
 
         # Drawing map
         for i in range(len(self.grid[0])):
@@ -121,10 +156,15 @@ class World():
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
                 if self.grid[i][j]:
+                    wall_rect = pygame.Rect(i * self.size,
+                                            j * self.size,
+                                            self.size,
+                                            self.size)
+                    self.wall_list.append(wall_rect)
                     pygame.draw.rect(screen,
                                      (0, 0, 0),
-                                     pygame.Rect(i * self.size, j * self.size,
-                                                 self.size, self.size))
+                                     wall_rect)
+
 
 
 pygame.init()
@@ -145,38 +185,22 @@ gui.set_alpha(0)
 pygame.draw.rect(screen, (255, 0, 0), rect)
 pygame.display.flip()
 
-# declaration of some ThorPy elements ...
-slider = thorpy.SliderX(100, (12, 35), "My Slider")
-button = thorpy.make_button("Quit", func=thorpy.functions.quit_func)
-box = thorpy.Box(elements=[slider, button])
-# we regroup all elements on a menu, even if we do not launch the menu
-menu = thorpy.Menu(box)
-# important : set the screen as surface for all elements
-for element in menu.get_population():
-    element.surface = screen
-# use the elements normally...
-box.set_topleft((100, 100))
-box.blit()
-box.update()
-
 world = World(screen)
 robot = Robot(screen, world)
-robot.update()
+robot.update(False)
+
+
 
 playing_game = True
 while playing_game:
     clock.tick(45)
     screen.blit(background, (0, 0))
-    box.blit()
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             playing_game = False
             break
-        if event.type == pygame.KEYDOWN:
-            pass
-        menu.react(event)  # the menu automatically integrate your elements
     robot.change_velocity(pygame.key.get_pressed())
-    robot.update()
+    robot.update(False)
     world.draw()
     pygame.display.update()
 
