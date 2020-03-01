@@ -1,10 +1,9 @@
-#Tutorial : how to use ThorPy with a pre-existing code - step 1
+# Tutorial : how to use ThorPy with a pre-existing code - step 1
 import pygame
 from pygame.math import Vector2
-import time
 import thorpy
 import numpy as np
-import random
+
 
 class Robot:
     def __init__(self, p_screen, p_world):
@@ -65,7 +64,8 @@ class Robot:
         if self.direction > 180 or self.direction < -180:
             self.direction *= -1
         speed = self.acceleration * 2
-        self.velocity[2] = np.sqrt(np.square(self.velocity[0]) + np.square(self.velocity[1]))
+        self.velocity[2] = np.sqrt(
+            np.square(self.velocity[0]) + np.square(self.velocity[1]))
 
         x_vec = np.cos(-1 * np.deg2rad(self.direction + 90)) * speed
         y_vec = np.sin(-1 * np.deg2rad(self.direction + 90)) * speed
@@ -79,7 +79,10 @@ class Robot:
 
     def convert_key(self, keys):
         _action = False
-        _keys_to_check = [[pygame.K_LEFT, "LEFT"], [pygame.K_RIGHT, "RIGHT"], [pygame.K_UP, "UP"], [pygame.K_DOWN, "DOWN"]]
+        _keys_to_check = [[pygame.K_LEFT, "LEFT"], 
+                          [pygame.K_RIGHT, "RIGHT"], 
+                          [pygame.K_UP, "UP"], 
+                          [pygame.K_DOWN, "DOWN"]]
         for i in range(len(_keys_to_check)):
             if keys[_keys_to_check[i][0]]:
                 if _keys_to_check[i][1] not in self.cur_keys:
@@ -98,11 +101,12 @@ class Robot:
 
         return self.cur_keys
 
+
 class World():
     def __init__(self, p_screen):
         self.screen = p_screen
         self.size = 5
-        self.grid = [[0 for _ in range(self.screen.get_size()[0] // 5)] 
+        self.grid = [[0 for _ in range(self.screen.get_size()[0] // 5)]
                      for __ in range(self.screen.get_size()[1] // 5)]
 
         # Drawing map
@@ -119,8 +123,9 @@ class World():
                 if self.grid[i][j]:
                     pygame.draw.rect(screen,
                                      (0, 0, 0),
-                                     pygame.Rect(i * self.size, j * self.size, 
+                                     pygame.Rect(i * self.size, j * self.size,
                                                  self.size, self.size))
+
 
 pygame.init()
 pygame.key.set_repeat(300, 30)
@@ -140,16 +145,16 @@ gui.set_alpha(0)
 pygame.draw.rect(screen, (255, 0, 0), rect)
 pygame.display.flip()
 
-#declaration of some ThorPy elements ...
+# declaration of some ThorPy elements ...
 slider = thorpy.SliderX(100, (12, 35), "My Slider")
 button = thorpy.make_button("Quit", func=thorpy.functions.quit_func)
 box = thorpy.Box(elements=[slider, button])
-#we regroup all elements on a menu, even if we do not launch the menu
+# we regroup all elements on a menu, even if we do not launch the menu
 menu = thorpy.Menu(box)
-#important : set the screen as surface for all elements
+# important : set the screen as surface for all elements
 for element in menu.get_population():
     element.surface = screen
-#use the elements normally...
+# use the elements normally...
 box.set_topleft((100, 100))
 box.blit()
 box.update()
@@ -169,8 +174,7 @@ while playing_game:
             break
         if event.type == pygame.KEYDOWN:
             pass
-        menu.react(event) #the menu automatically integrate your elements
-    # print(pygame.key.get_pressed())
+        menu.react(event)  # the menu automatically integrate your elements
     robot.change_velocity(pygame.key.get_pressed())
     robot.update()
     world.draw()
