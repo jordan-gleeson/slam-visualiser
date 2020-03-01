@@ -1,19 +1,23 @@
 #Tutorial : how to use ThorPy with a pre-existing code - step 1
 import pygame
+from pygame.math import Vector2
 import time
 import thorpy
 import numpy as np
+import random
 
 class Robot:
-    def __init__(self, p_screen):
+    def __init__(self, p_screen, p_world):
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.image.load("roomba.png")
         self.image = pygame.transform.smoothscale(self.image, (50, 50))
         self.og_image = self.image.copy()
         self.rect = self.image.get_rect()
-        self.x_pos = 0
-        self.y_pos = 0
         self.screen = p_screen
+        self.world = p_world
+        self.x_pos = self.screen.get_size()[0] / 2
+        self.y_pos = self.screen.get_size()[1] / 2
+        self.rect.center = (self.x_pos, self.y_pos)
         self.velocity = [0, 0, 0]  # (x_vel, y_vel) pixels/tick
         self.last_velocity = [0, 0, 0]
         self.max_velocity = 4
@@ -94,6 +98,30 @@ class Robot:
 
         return self.cur_keys
 
+class World():
+    def __init__(self, p_screen):
+        self.screen = p_screen
+        self.size = 5
+        self.grid = [[0 for _ in range(self.screen.get_size()[0] // 5)] 
+                     for __ in range(self.screen.get_size()[1] // 5)]
+
+        # Drawing map
+        for i in range(len(self.grid[0])):
+            for j in range(len(self.grid[0])):
+                if i == 0 or i == len(self.grid) - 1 or j == 0 or j == len(self.grid[0]) - 1:
+                    self.grid[i][j] = 1
+                else:
+                    self.grid[i][j] = 0
+
+    def draw(self):
+        for i in range(len(self.grid)):
+            for j in range(len(self.grid[0])):
+                if self.grid[i][j]:
+                    pygame.draw.rect(screen,
+                                     (0, 0, 0),
+                                     pygame.Rect(i * self.size, j * self.size, 
+                                                 self.size, self.size))
+
 pygame.init()
 pygame.key.set_repeat(300, 30)
 screen = pygame.display.set_mode((400, 400))
@@ -126,7 +154,8 @@ box.set_topleft((100, 100))
 box.blit()
 box.update()
 
-robot = Robot(screen)
+world = World(screen)
+robot = Robot(screen, world)
 robot.update()
 
 playing_game = True
@@ -144,6 +173,7 @@ while playing_game:
     # print(pygame.key.get_pressed())
     robot.change_velocity(pygame.key.get_pressed())
     robot.update()
+    world.draw()
     pygame.display.update()
 
 pygame.quit()
