@@ -81,6 +81,8 @@ class Robot:
 
     def change_velocity(self, keys):
         pressed_keys = self.convert_key(keys)
+        if "R" in pressed_keys:
+            self.reset()
         if "RIGHT" in pressed_keys:
             self.direction -= 1 * self.angular_velocity
         if "LEFT" in pressed_keys:
@@ -106,7 +108,8 @@ class Robot:
         _keys_to_check = [[pygame.K_LEFT, "LEFT"],
                           [pygame.K_RIGHT, "RIGHT"],
                           [pygame.K_UP, "UP"],
-                          [pygame.K_DOWN, "DOWN"]]
+                          [pygame.K_DOWN, "DOWN"],
+                          [pygame.K_r, "R"]]
         for i in range(len(_keys_to_check)):
             if keys[_keys_to_check[i][0]]:
                 if _keys_to_check[i][1] not in self.cur_keys:
@@ -126,14 +129,10 @@ class Robot:
         return self.cur_keys
 
     def collision_detector(self):
-        collision = False
         for wall in self.world.wall_list:
             if self.hitbox.colliderect(wall):
-                collision = True
-        if collision:
-            return True
-        else:
-            return False
+                return True
+        return False
 
 
 class World():
