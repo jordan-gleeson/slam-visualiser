@@ -57,53 +57,56 @@ class Robot:
     def move_velocity(self):
         deceleration = self.acceleration / 2
         collision_list = self.collision_detector()
-        if len(collision_list) == 0:
-            self.rect.y += self.velocity[1]
-            self.rect.x += self.velocity[0]
-        else:
-            # self.rect.y =
-            # self.rect.x =
-            biggest_size = 0
-            biggest_iterator = 0
-            axis = ""
-            h_count, w_count = 0, 0
-            for i in range(len(collision_list)):
-                clip = self.hitbox.clip(
-                    self.world.wall_list[collision_list[i]])
-                # print(self.hitbox.center, clip.center)
-                # print(center_dif)
-                if clip.top == self.hitbox.top or clip.bottom == self.hitbox.bottom:
-                    h_count += 1
-                elif clip.left == self.hitbox.left or clip.right == self.hitbox.right:
-                    w_count += 1
-            print(w_count, h_count)
-            #  TODO: Shouldn't this be within the for loop?
-            if w_count > h_count:
-                if clip.height >= biggest_size:
-                    biggest_size = clip.width
-                    biggest_iterator = i
-                    axis = 'W'
-            else:
-                if clip.height >= biggest_size:
-                    biggest_size = clip.height
-                    biggest_iterator = i
-                    axis = 'H'
-            #  TODO: make collision rebound much smaller
-            worst_wall = self.world.wall_list[collision_list[biggest_iterator]]
-            if axis == 'H':
-                if self.hitbox.center[1] > worst_wall.center[1]:
-                    print("setting to clip bottom")
-                    self.rect.y = worst_wall.bottom
-                else:
-                    print("setting to clip top")
-                    self.rect.y = worst_wall.top - self.rect.height
-            else:
-                if self.hitbox.center[0] > worst_wall[0]:
-                    print("setting to clip right")
-                    self.rect.x = worst_wall.right
-                else:
-                    print("setting to clip left")
-                    self.rect.x = worst_wall.left - self.rect.width
+        self.rect.y += self.velocity[1]
+        self.rect.x += self.velocity[0]
+
+        # if len(collision_list) == 0:
+        #     self.rect.y += self.velocity[1]
+        #     self.rect.x += self.velocity[0]
+        # else:
+        #     # self.rect.y =
+        #     # self.rect.x =
+        #     biggest_size = 0
+        #     biggest_iterator = 0
+        #     axis = ""
+        #     h_count, w_count = 0, 0
+        #     for i in range(len(collision_list)):
+        #         clip = self.hitbox.clip(
+        #             self.world.wall_list[collision_list[i]])
+        #         # print(self.hitbox.center, clip.center)
+        #         # print(center_dif)
+        #         if clip.top == self.hitbox.top or clip.bottom == self.hitbox.bottom:
+        #             h_count += 1
+        #         elif clip.left == self.hitbox.left or clip.right == self.hitbox.right:
+        #             w_count += 1
+        #     print(w_count, h_count)
+        #     #  TODO: Shouldn't this be within the for loop?
+        #     if w_count > h_count:
+        #         if clip.height >= biggest_size:
+        #             biggest_size = clip.width
+        #             biggest_iterator = i
+        #             axis = 'W'
+        #     else:
+        #         if clip.height >= biggest_size:
+        #             biggest_size = clip.height
+        #             biggest_iterator = i
+        #             axis = 'H'
+        #     #  TODO: make collision rebound much smaller
+        #     worst_wall = self.world.wall_list[collision_list[biggest_iterator]]
+            # if axis == 'H':
+            #     if self.hitbox.center[1] > worst_wall.center[1]:
+            #         print("setting to clip bottom")
+            #         self.rect.y = worst_wall.bottom
+            #     else:
+            #         print("setting to clip top")
+            #         self.rect.y = worst_wall.top - self.rect.height
+            # else:
+            #     if self.hitbox.center[0] > worst_wall[0]:
+            #         print("setting to clip right")
+            #         self.rect.x = worst_wall.right
+            #     else:
+            #         print("setting to clip left")
+            #         self.rect.x = worst_wall.left - self.rect.width
 
             # print("2", self.velocity[1] * (self.acceleration / 10))
         if "UP" not in self.cur_keys:
@@ -128,22 +131,41 @@ class Robot:
             self.direction -= 1 * self.angular_velocity
         if "LEFT" in pressed_keys:
             self.direction += 1 * self.angular_velocity
-        if self.direction > 180 or self.direction < -180:
-            self.direction *= -1
+            
+        if self.direction > 180:
+            self.direction = -180 + (self.direction - 180)
+        elif self.direction < -180:
+            self.direction = 180 + (self.direction + 180)
+
         speed = self.acceleration * 2
         self.velocity[2] = np.sqrt(
             np.square(self.velocity[0]) + np.square(self.velocity[1]))
+        
+        # print(self.direction, self.velocity[0], self.velocity[1], self.velocity[2])
 
         x_vec = np.cos(-1 * np.deg2rad(self.direction + 90)) * speed
         y_vec = np.sin(-1 * np.deg2rad(self.direction + 90)) * speed
+        # print(self.direction, x_vec, y_vec)
+        # print()
         if "UP" in pressed_keys:
-            if self.velocity[2] < self.max_velocity and self.velocity[2] > -self.max_velocity:
-                self.velocity[0] += self.acceleration * x_vec
-                self.velocity[1] += self.acceleration * y_vec
-            else:
-                self.velocity[0] = self.max_velocity * x_vec
-                self.velocity[1] = self.max_velocity * y_vec
-
+            # if self.velocity[2] < self.max_velocity and self.velocity[2] > -self.max_velocity:
+            #     self.velocity[0] += self.acceleration * x_vec
+            #     self.velocity[1] += self.acceleration * y_vec
+            # else:
+            #     divider = self.max_velocity / (self.velocity[0] + self.velocity[1])
+            #     self.velocity[0] = self.max_velocity * x_vec
+            #     self.velocity[1] = self.max_velocity * y_vec
+            self.velocity[0] += self.acceleration * x_vec
+            self.velocity[1] += self.acceleration * y_vec
+            self.velocity[2] = np.sqrt(
+                np.square(self.velocity[0]) + np.square(self.velocity[1]))
+            print("Before: ", self.velocity[2])
+            if self.velocity[2] > self.max_velocity: # or self.velocity[2] < -self.max_velocity:
+                divider = self.max_velocity / (self.velocity[0] + self.velocity[1])
+                self.velocity[0] = divider * self.velocity[0]
+                self.velocity[1] = divider * self.velocity[1]
+                print("After:  ", np.sqrt(np.square(self.velocity[0]) + np.square(self.velocity[1])))
+                
     def convert_key(self, keys):
         _action = False
         _keys_to_check = [[pygame.K_LEFT, "LEFT"],
