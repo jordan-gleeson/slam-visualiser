@@ -158,13 +158,11 @@ class Robot:
             self.velocity[0] += self.acceleration * x_vec
             self.velocity[1] += self.acceleration * y_vec
             self.velocity[2] = np.sqrt(
-                np.square(self.velocity[0]) + np.square(self.velocity[1]))
-            print("Before: ", self.velocity[2])
+                np.square(abs(self.velocity[0])) + abs(np.square(self.velocity[1])))
             if self.velocity[2] > self.max_velocity: # or self.velocity[2] < -self.max_velocity:
-                divider = self.max_velocity / (self.velocity[0] + self.velocity[1])
+                divider = self.max_velocity / np.sqrt(np.square(self.velocity[0]) + np.square(self.velocity[1]))
                 self.velocity[0] = divider * self.velocity[0]
                 self.velocity[1] = divider * self.velocity[1]
-                print("After:  ", np.sqrt(np.square(self.velocity[0]) + np.square(self.velocity[1])))
                 
     def convert_key(self, keys):
         _action = False
