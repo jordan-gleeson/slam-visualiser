@@ -14,8 +14,8 @@ class Robot:
         self.rect = self.image.get_rect()
         self.screen = p_screen
         self.world = p_world
-        self.x_pos = self.screen.get_size()[0] / 2
-        self.y_pos = self.screen.get_size()[1] / 2
+        self.x_pos = float(self.screen.get_size()[0] / 2)
+        self.y_pos = float(self.screen.get_size()[1] / 2)
         self.rect.center = (self.x_pos, self.y_pos)
         self.velocity = [0, 0, 0]  # (x_vel, y_vel) pixels/tick
         self.max_velocity = 2
@@ -44,21 +44,21 @@ class Robot:
         self.hitbox.x = self.x_pos - (self.image_size[0] / 2)
         self.hitbox.y = self.y_pos - (self.image_size[1] / 2)
         self.collision_detector()
-        # print("1", self.x_pos, self.y_pos)
         pygame.draw.rect(screen, (0, 255, 0), self.hitbox)
         self.screen.blit(self.image, self.rect)
 
     def rotate(self):
         self.image = pygame.transform.rotate(self.og_image, self.direction)
-        self.x_pos, self.y_pos = self.rect.center
         self.rect = self.image.get_rect()
         self.rect.center = (self.x_pos, self.y_pos)
 
     def move_velocity(self):
         deceleration = self.acceleration / 2
         collision_list = self.collision_detector()
-        self.rect.y += self.velocity[1]
-        self.rect.x += self.velocity[0]
+
+        self.x_pos += self.velocity[0]
+        self.y_pos += self.velocity[1]
+        self.rect.center = (self.x_pos, self.y_pos)
 
         # if len(collision_list) == 0:
         #     self.rect.y += self.velocity[1]
@@ -140,26 +140,15 @@ class Robot:
         speed = self.acceleration * 2
         self.velocity[2] = np.sqrt(
             np.square(self.velocity[0]) + np.square(self.velocity[1]))
-        
-        # print(self.direction, self.velocity[0], self.velocity[1], self.velocity[2])
 
         x_vec = np.cos(-1 * np.deg2rad(self.direction + 90)) * speed
         y_vec = np.sin(-1 * np.deg2rad(self.direction + 90)) * speed
-        # print(self.direction, x_vec, y_vec)
-        # print()
         if "UP" in pressed_keys:
-            # if self.velocity[2] < self.max_velocity and self.velocity[2] > -self.max_velocity:
-            #     self.velocity[0] += self.acceleration * x_vec
-            #     self.velocity[1] += self.acceleration * y_vec
-            # else:
-            #     divider = self.max_velocity / (self.velocity[0] + self.velocity[1])
-            #     self.velocity[0] = self.max_velocity * x_vec
-            #     self.velocity[1] = self.max_velocity * y_vec
             self.velocity[0] += self.acceleration * x_vec
             self.velocity[1] += self.acceleration * y_vec
             self.velocity[2] = np.sqrt(
-                np.square(abs(self.velocity[0])) + abs(np.square(self.velocity[1])))
-            if self.velocity[2] > self.max_velocity: # or self.velocity[2] < -self.max_velocity:
+                np.square(self.velocity[0]) + np.square(self.velocity[1]))
+            if self.velocity[2] > self.max_velocity:
                 divider = self.max_velocity / np.sqrt(np.square(self.velocity[0]) + np.square(self.velocity[1]))
                 self.velocity[0] = divider * self.velocity[0]
                 self.velocity[1] = divider * self.velocity[1]
