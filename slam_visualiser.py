@@ -56,59 +56,30 @@ class Robot:
         deceleration = self.acceleration / 2
         collision_list = self.collision_detector()
 
-        self.x_pos += self.velocity[0]
-        self.y_pos += self.velocity[1]
-        self.rect.center = (self.x_pos, self.y_pos)
+        if len(collision_list) == 0:
+            self.x_pos += self.velocity[0]
+            self.y_pos += self.velocity[1]
+            self.rect.center = (self.x_pos, self.y_pos)
+        else:
+            closest_distance = 100
+            closest_iterator = 0
+            for i in range(len(collision_list)):
+                distance = np.sqrt(np.square(self.world.wall_list[collision_list[i]].center[0] - self.x_pos) + np.square(
+                    self.world.wall_list[collision_list[i]].center[1] - self.y_pos))
+                if distance < closest_distance:
+                    closest_distance = distance
+                    closest_iterator = i
+            wall = self.world.wall_list[collision_list[closest_iterator]]
+            pygame.draw.rect(self.screen, (255, 0, 0), wall)
+            if wall.bottom > self.y_pos - self.image_size[1] / 2 and wall.top < self.y_pos - self.image_size[1] / 2:
+                self.y_pos = wall.bottom + self.image_size[1] / 2
+            elif wall.top < self.y_pos + self.image_size[1] / 2 and wall.bottom > self.y_pos + self.image_size[1] / 2:
+                self.y_pos = wall.top - self.image_size[1] / 2
+            if wall.right > self.x_pos - self.image_size[0] / 2 and wall.left < self.x_pos - self.image_size[0] / 2:
+                self.x_pos = wall.right + self.image_size[0] / 2
+            elif wall.left < self.x_pos + self.image_size[0] / 2 and wall.right > self.x_pos + self.image_size[0] / 2:
+                self.x_pos = wall.left - self.image_size[0] / 2
 
-        # if len(collision_list) == 0:
-        #     self.rect.y += self.velocity[1]
-        #     self.rect.x += self.velocity[0]
-        # else:
-        #     # self.rect.y =
-        #     # self.rect.x =
-        #     biggest_size = 0
-        #     biggest_iterator = 0
-        #     axis = ""
-        #     h_count, w_count = 0, 0
-        #     for i in range(len(collision_list)):
-        #         clip = self.hitbox.clip(
-        #             self.world.wall_list[collision_list[i]])
-        #         # print(self.hitbox.center, clip.center)
-        #         # print(center_dif)
-        #         if clip.top == self.hitbox.top or clip.bottom == self.hitbox.bottom:
-        #             h_count += 1
-        #         elif clip.left == self.hitbox.left or clip.right == self.hitbox.right:
-        #             w_count += 1
-        #     print(w_count, h_count)
-        #     #  TODO: Shouldn't this be within the for loop?
-        #     if w_count > h_count:
-        #         if clip.height >= biggest_size:
-        #             biggest_size = clip.width
-        #             biggest_iterator = i
-        #             axis = 'W'
-        #     else:
-        #         if clip.height >= biggest_size:
-        #             biggest_size = clip.height
-        #             biggest_iterator = i
-        #             axis = 'H'
-        #     #  TODO: make collision rebound much smaller
-        #     worst_wall = self.world.wall_list[collision_list[biggest_iterator]]
-            # if axis == 'H':
-            #     if self.hitbox.center[1] > worst_wall.center[1]:
-            #         print("setting to clip bottom")
-            #         self.rect.y = worst_wall.bottom
-            #     else:
-            #         print("setting to clip top")
-            #         self.rect.y = worst_wall.top - self.rect.height
-            # else:
-            #     if self.hitbox.center[0] > worst_wall[0]:
-            #         print("setting to clip right")
-            #         self.rect.x = worst_wall.right
-            #     else:
-            #         print("setting to clip left")
-            #         self.rect.x = worst_wall.left - self.rect.width
-
-            # print("2", self.velocity[1] * (self.acceleration / 10))
         if "UP" not in self.cur_keys:
             if self.velocity[0] > 0:
                 self.velocity[0] -= deceleration
@@ -131,7 +102,7 @@ class Robot:
             self.direction -= 1 * self.angular_velocity
         if "LEFT" in pressed_keys:
             self.direction += 1 * self.angular_velocity
-            
+
         if self.direction > 180:
             self.direction = -180 + (self.direction - 180)
         elif self.direction < -180:
@@ -149,10 +120,12 @@ class Robot:
             self.velocity[2] = np.sqrt(
                 np.square(self.velocity[0]) + np.square(self.velocity[1]))
             if self.velocity[2] > self.max_velocity:
-                divider = self.max_velocity / np.sqrt(np.square(self.velocity[0]) + np.square(self.velocity[1]))
+                divider = self.max_velocity / \
+                    np.sqrt(
+                        np.square(self.velocity[0]) + np.square(self.velocity[1]))
                 self.velocity[0] = divider * self.velocity[0]
                 self.velocity[1] = divider * self.velocity[1]
-                
+
     def convert_key(self, keys):
         _action = False
         _keys_to_check = [[pygame.K_LEFT, "LEFT"],
@@ -179,13 +152,7 @@ class Robot:
         return self.cur_keys
 
     def collision_detector(self):
-        # collision_list = []
-        # for wall in self.world.wall_list:
-        #     if self.hitbox.colliderect(wall):
-        #         self.collision_list.append(wall)
-        # print(len(self.world.wall_list))
         collision_list = self.hitbox.collidelistall(self.world.wall_list)
-        # print(collision_list)
         return collision_list
 
 
@@ -252,8 +219,8 @@ while playing_game:
             playing_game = False
             break
     robot.change_velocity(pygame.key.get_pressed())
-    robot.update()
     world.draw()
+    robot.update()
     pygame.display.update()
 
 pygame.quit()
