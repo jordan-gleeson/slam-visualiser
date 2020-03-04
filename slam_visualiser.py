@@ -24,9 +24,11 @@ class Robot:
         self.direction = 0
         self.angular_velocity = 4
         self.hitbox = pygame.Rect(self.x_pos - (self.image_size[0] / 2),
-                                      self.y_pos - (self.image_size[1] / 2),
-                                      self.image_size[0] + 2,
-                                      self.image_size[1] + 2)
+                                  self.y_pos - (self.image_size[1] / 2),
+                                  self.image_size[0] + 2,
+                                  self.image_size[1] + 2)
+        self.point_count = 73
+        self.dummy_screen = pygame.Surface(self.screen.get_size())
 
     def reset(self):
         print("Reseting...")
@@ -42,6 +44,7 @@ class Robot:
         self.rotate()
         self.rect.center = (self.x_pos, self.y_pos)
         self.hitbox.center = (self.x_pos, self.y_pos)
+        self.lidar()
         self.screen.blit(self.image, self.rect)
 
     def rotate(self):
@@ -132,14 +135,12 @@ class Robot:
                     self.cur_keys.remove(_keys_to_check[i][1])
                 except ValueError:
                     pass
-
         if _action:
             self.cur_keys = self.cur_keys[-2:]
         else:
             self.cur_keys = []
-
         return self.cur_keys
-    
+
     def collision_detector(self):
         # TODO: Solve phasing through inverted corners due to alternating sides
         # TODO: Implement proper circle hitbox (subtractive from current?)
@@ -154,12 +155,13 @@ class Robot:
                     closest_distance = distance
                     closest_iterator = i
             wall = self.world.wall_list[collision_list[closest_iterator]]
-            pygame.draw.rect(self.screen, (255, 0, 0), wall)
             closest_side_distance = 100
-            sides = [self.hitbox.midtop, self.hitbox.midright, self.hitbox.midbottom, self.hitbox.midleft]
+            sides = [self.hitbox.midtop, self.hitbox.midright,
+                     self.hitbox.midbottom, self.hitbox.midleft]
             closest_side = -1
             for i in range(len(sides)):
-                distance = np.sqrt(np.square(sides[i][0] - wall.center[0]) + np.square(sides[i][1] - wall.center[1]))
+                distance = np.sqrt(np.square(
+                    sides[i][0] - wall.center[0]) + np.square(sides[i][1] - wall.center[1]))
                 if distance < closest_side_distance:
                     closest_side_distance = distance
                     closest_side = i
@@ -174,6 +176,39 @@ class Robot:
         else:
             return "NONE"
 
+    def lidar(self):
+        # TODO: Use point collision
+        lidar = Vector2()
+        lidar.xy = (self.x_pos, self.y_pos)
+        lasers = []
+        for i in range(self.point_count):
+            # if i > -1:
+            degree_multiplier = 365 / self.point_count
+            cur_angle = i * degree_multiplier
+            # lasers.append(Vector2.from_polar((100, i * 5)))
+            laser = Vector2()
+            laser.from_polar((100, cur_angle))
+            rect = pygame.draw.aaline(
+                self.screen, (255, 0, 0), lidar, lidar + laser)
+            collision_list = rect.collidelistall(self.world.wall_list)
+            closest_distance = 1000
+            closest_wall_iterator = -1
+            for j in range(len(collision_list)):
+                point_distance = np.sqrt(np.square(self.world.wall_list[collision_list[j]].center[0] - self.x_pos) + np.square(
+                    np.square(self.world.wall_list[collision_list[j]].center[1] - self.y_pos)))
+                if point_distance < closest_distance:
+                    closest_distance = point_distance
+                    closest_wall_iterator = j
+                pygame.draw.rect(self.screen, (255, 0, 0), self.world.wall_list[collision_list[j]])
+            # print(closest_distance)
+                # print(point_distance)
+        print()
+        # laser.from_polar((50, i * degree_multiplier))
+        # rect = pygame.draw.aaline(self.screen, (255, 0, 0), lidar, lidar + laser)
+        # laser = Vector2()
+        # laser.from_polar((50, -self.direction + 90))
+
+
 class World():
     def __init__(self, p_screen):
         self.screen = p_screen
@@ -182,7 +217,7 @@ class World():
                      for __ in range(self.screen.get_size()[1] // 5)]
         self.wall_list = []
         self.write_map()
-                    
+
     def write_map(self):
         # Drawing map
         for i in range(len(self.grid[0])):
@@ -194,7 +229,7 @@ class World():
                 if i > 25 and i < 30:
                     if j > 25 and j < 30:
                         self.grid[i][j] = 1
-        
+
     def draw(self):
         self.wall_list = []
         for i in range(len(self.grid)):
@@ -206,16 +241,14 @@ class World():
                                             self.size)
                     self.wall_list.append(wall_rect)
                     pygame.draw.rect(screen,
-                                        (0, 0, 0),
-                                        wall_rect)
+                                     (0, 0, 0),
+                                     wall_rect)
 
 
 pygame.init()
 pygame.key.set_repeat(300, 30)
 screen = pygame.display.set_mode((400, 400))
 screen.fill((255, 255, 255))
-rect = pygame.Rect((0, 0, 50, 50))
-rect.center = screen.get_rect().center
 clock = pygame.time.Clock()
 
 background = pygame.Surface(screen.get_size())
@@ -225,7 +258,6 @@ background.fill((250, 250, 250))
 gui = pygame.Surface(screen.get_size())
 gui.set_alpha(0)
 
-pygame.draw.rect(screen, (255, 0, 0), rect)
 pygame.display.flip()
 
 world = World(screen)

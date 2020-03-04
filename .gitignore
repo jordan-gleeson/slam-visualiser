@@ -6,6 +6,7 @@ turret.png
 roomba2.png
 roomba_design.xcf
 roomba_square.png
+raycasting_example.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
