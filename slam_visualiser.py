@@ -24,13 +24,9 @@ class Robot:
         self.direction = 0
         self.angular_velocity = 4
         self.hitbox = pygame.Rect(self.x_pos - (self.image_size[0] / 2),
-                                  self.y_pos - (self.image_size[1] / 2),
-                                  self.image_size[0],
-                                  self.image_size[1])
-        self.pre_hitbox = pygame.Rect(self.x_pos - (self.image_size[0] / 2),
                                       self.y_pos - (self.image_size[1] / 2),
-                                      self.image_size[0] + 10,
-                                      self.image_size[1] + 10)
+                                      self.image_size[0] + 2,
+                                      self.image_size[1] + 2)
 
     def reset(self):
         print("Reseting...")
@@ -45,12 +41,7 @@ class Robot:
         self.move_velocity()
         self.rotate()
         self.rect.center = (self.x_pos, self.y_pos)
-        # self.hitbox.center = (self.x_pos - (self.image_size[0] / 2), self.y_pos - (self.image_size[1] / 2))
         self.hitbox.center = (self.x_pos, self.y_pos)
-        self.pre_hitbox.center = (self.x_pos, self.y_pos)
-        # self.hitbox.y = self.y_pos - (self.image_size[1] / 2)
-        self.collision_detector()
-        pygame.draw.rect(screen, (0, 255, 0), self.pre_hitbox)
         self.screen.blit(self.image, self.rect)
 
     def rotate(self):
@@ -60,53 +51,23 @@ class Robot:
 
     def move_velocity(self):
         deceleration = self.acceleration / 2
-        collision_list = self.collision_detector()
-        
-        collision_side = self.pre_collision_detector()
+        collision_side = self.collision_detector()
         if collision_side == "TOP":
-            print("TOP")
             if self.velocity[1] < 0:
                 self.velocity[1] = 0
         elif collision_side == "BOTTOM":
-            print("BOTTOM")
             if self.velocity[1] > 0:
                 self.velocity[1] = 0
         elif collision_side == "RIGHT":
-            print("RIGHT")
             if self.velocity[0] > 0:
                 self.velocity[0] = 0
         elif collision_side == "LEFT":
-            print("LEFT")
             if self.velocity[0] < 0:
                 self.velocity[0] = 0
-        
+
         self.x_pos += self.velocity[0]
         self.y_pos += self.velocity[1]
         self.rect.center = (self.x_pos, self.y_pos)
-
-        # if len(collision_list) == 0:
-        #     self.x_pos += self.velocity[0]
-        #     self.y_pos += self.velocity[1]
-        #     self.rect.center = (self.x_pos, self.y_pos)
-        # else:
-        #     closest_distance = 100
-        #     closest_iterator = 0
-        #     for i in range(len(collision_list)):
-        #         distance = np.sqrt(np.square(self.world.wall_list[collision_list[i]].center[0] - self.x_pos) + np.square(
-        #             self.world.wall_list[collision_list[i]].center[1] - self.y_pos))
-        #         if distance < closest_distance:
-        #             closest_distance = distance
-        #             closest_iterator = i
-        #     wall = self.world.wall_list[collision_list[closest_iterator]]
-        #     pygame.draw.rect(self.screen, (255, 0, 0), wall)
-        #     if wall.bottom > self.y_pos - self.image_size[1] / 2 and wall.top < self.y_pos - self.image_size[1] / 2:
-        #         self.y_pos = wall.bottom + self.image_size[1] / 2
-        #     elif wall.top < self.y_pos + self.image_size[1] / 2 and wall.bottom > self.y_pos + self.image_size[1] / 2:
-        #         self.y_pos = wall.top - self.image_size[1] / 2
-        #     if wall.right > self.x_pos - self.image_size[0] / 2 and wall.left < self.x_pos - self.image_size[0] / 2:
-        #         self.x_pos = wall.right + self.image_size[0] / 2
-        #     elif wall.left < self.x_pos + self.image_size[0] / 2 and wall.right > self.x_pos + self.image_size[0] / 2:
-                # self.x_pos = wall.left - self.image_size[0] / 2
 
         if "UP" not in self.cur_keys:
             if self.velocity[0] > 0:
@@ -178,13 +139,11 @@ class Robot:
             self.cur_keys = []
 
         return self.cur_keys
-
-    def collision_detector(self):
-        collision_list = self.pre_hitbox.collidelistall(self.world.wall_list)
-        return collision_list
     
-    def pre_collision_detector(self):
-        collision_list = self.pre_hitbox.collidelistall(self.world.wall_list)
+    def collision_detector(self):
+        # TODO: Solve phasing through inverted corners due to alternating sides
+        # TODO: Implement proper circle hitbox (subtractive from current?)
+        collision_list = self.hitbox.collidelistall(self.world.wall_list)
         if len(collision_list) > 0:
             closest_distance = 100
             closest_iterator = 0
@@ -196,14 +155,22 @@ class Robot:
                     closest_iterator = i
             wall = self.world.wall_list[collision_list[closest_iterator]]
             pygame.draw.rect(self.screen, (255, 0, 0), wall)
-            if wall.bottom > self.pre_hitbox.top:
+            closest_side_distance = 100
+            sides = [self.hitbox.midtop, self.hitbox.midright, self.hitbox.midbottom, self.hitbox.midleft]
+            closest_side = -1
+            for i in range(len(sides)):
+                distance = np.sqrt(np.square(sides[i][0] - wall.center[0]) + np.square(sides[i][1] - wall.center[1]))
+                if distance < closest_side_distance:
+                    closest_side_distance = distance
+                    closest_side = i
+            if closest_side == 0:
                 return "TOP"
-            elif wall.top < self.pre_hitbox.bottom:
-                return "BOTTOM"
-            if wall.right > self.pre_hitbox.left:
-                return "LEFT"
-            elif wall.left < self.pre_hitbox.right:
+            elif closest_side == 1:
                 return "RIGHT"
+            if closest_side == 2:
+                return "BOTTOM"
+            elif closest_side == 3:
+                return "LEFT"
         else:
             return "NONE"
 
@@ -214,7 +181,9 @@ class World():
         self.grid = [[0 for _ in range(self.screen.get_size()[0] // 5)]
                      for __ in range(self.screen.get_size()[1] // 5)]
         self.wall_list = []
-
+        self.write_map()
+                    
+    def write_map(self):
         # Drawing map
         for i in range(len(self.grid[0])):
             for j in range(len(self.grid[0])):
@@ -222,22 +191,23 @@ class World():
                     self.grid[i][j] = 1
                 else:
                     self.grid[i][j] = 0
-
+                if i > 25 and i < 30:
+                    if j > 25 and j < 30:
+                        self.grid[i][j] = 1
+        
     def draw(self):
-        def draw_wall(x, y):
-            wall_rect = pygame.Rect(x * self.size,
-                                    y * self.size,
-                                    self.size,
-                                    self.size)
-            self.wall_list.append(wall_rect)
-            pygame.draw.rect(screen,
-                                (0, 0, 0),
-                                wall_rect)
         self.wall_list = []
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
                 if self.grid[i][j]:
-                    draw_wall(i, j)
+                    wall_rect = pygame.Rect(i * self.size,
+                                            j * self.size,
+                                            self.size,
+                                            self.size)
+                    self.wall_list.append(wall_rect)
+                    pygame.draw.rect(screen,
+                                        (0, 0, 0),
+                                        wall_rect)
 
 
 pygame.init()
