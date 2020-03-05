@@ -1,4 +1,4 @@
-# Tutorial : how to use ThorPy with a pre-existing code - step 1
+import time
 import pygame
 from pygame.math import Vector2
 import numpy as np
@@ -177,31 +177,32 @@ class Robot:
             return "NONE"
 
     def lidar(self):
-        # TODO: Use point collision
         lidar = Vector2()
         lidar.xy = (self.x_pos, self.y_pos)
         lasers = []
         for i in range(self.point_count):
-            # if i > -1:
-            degree_multiplier = 365 / self.point_count
-            cur_angle = i * degree_multiplier
-            # lasers.append(Vector2.from_polar((100, i * 5)))
-            laser = Vector2()
-            laser.from_polar((100, cur_angle))
-            rect = pygame.draw.aaline(
-                self.screen, (255, 0, 0), lidar, lidar + laser)
-            collision_list = rect.collidelistall(self.world.wall_list)
-            closest_distance = 1000
-            closest_wall_iterator = -1
-            for j in range(len(collision_list)):
-                point_distance = np.sqrt(np.square(self.world.wall_list[collision_list[j]].center[0] - self.x_pos) + np.square(
-                    np.square(self.world.wall_list[collision_list[j]].center[1] - self.y_pos)))
-                if point_distance < closest_distance:
-                    closest_distance = point_distance
-                    closest_wall_iterator = j
-                pygame.draw.rect(self.screen, (255, 0, 0), self.world.wall_list[collision_list[j]])
-            # print(closest_distance)
-                # print(point_distance)
+            if i >= 0:
+                degree_multiplier = 365 / self.point_count
+                cur_angle = i * degree_multiplier
+                laser = Vector2()
+                laser.from_polar((100, cur_angle))
+                rect = pygame.draw.aaline(
+                    self.screen, (255, 0, 0), lidar, lidar + laser)
+                
+                heading_direction = laser.normalize()
+                obs_found = False
+                collide_point = (-1, -1)
+                # TODO: Find the closest collide point (SUPER SLOW???)
+                closest_point = (-1, -1)
+                for j in range(len(self.world.wall_list)):
+                    cur_pos = Vector2(self.x_pos, self.y_pos)
+                    for _ in range(int(laser.length())):
+                        cur_pos += heading_direction
+                        # pygame.draw.circle(self.screen, (0, 0, 255), (int(cur_pos.x), int(cur_pos.y)), 1)
+                        if self.world.wall_list[j].collidepoint(cur_pos):
+                            collide_point = (cur_pos.x, cur_pos.y)
+                if not collide_point == (-1, -1):
+                    pygame.draw.circle(self.screen, (0, 0, 255), (int(collide_point[0]), int(collide_point[1])), 5)
         print()
         # laser.from_polar((50, i * degree_multiplier))
         # rect = pygame.draw.aaline(self.screen, (255, 0, 0), lidar, lidar + laser)
