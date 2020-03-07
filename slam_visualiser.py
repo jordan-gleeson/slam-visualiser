@@ -5,15 +5,16 @@ import numpy as np
 
 
 class Robot:
-    def __init__(self, p_screen, p_world):
+    def __init__(self, _screen, _world, _world_screen):
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.image.load("roomba.png")
         self.image = pygame.transform.smoothscale(self.image, (50, 50))
         self.image_size = self.image.get_size()
         self.og_image = self.image.copy()
         self.rect = self.image.get_rect()
-        self.screen = p_screen
-        self.world = p_world
+        self.screen = _screen
+        self.world_screen = _world_screen
+        self.world = _world
         self.x_pos = float(self.screen.get_size()[0] / 2)
         self.y_pos = float(self.screen.get_size()[1] / 2)
         self.rect.center = (self.x_pos, self.y_pos)
@@ -27,8 +28,9 @@ class Robot:
                                   self.y_pos - (self.image_size[1] / 2),
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
-        self.point_count = 73
-        self.dummy_screen = pygame.Surface(self.screen.get_size())
+        self.point_count = 20
+        self.dummy_screen = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        self.dummy_world_screen = self.dummy_screen.copy()
 
     def reset(self):
         print("Reseting...")
@@ -54,19 +56,19 @@ class Robot:
 
     def move_velocity(self):
         deceleration = self.acceleration / 2
-        # collision_side = self.collision_detector()
-        # if collision_side == "TOP":
-        #     if self.velocity[1] < 0:
-        #         self.velocity[1] = 0
-        # elif collision_side == "BOTTOM":
-        #     if self.velocity[1] > 0:
-        #         self.velocity[1] = 0
-        # elif collision_side == "RIGHT":
-        #     if self.velocity[0] > 0:
-        #         self.velocity[0] = 0
-        # elif collision_side == "LEFT":
-        #     if self.velocity[0] < 0:
-        #         self.velocity[0] = 0
+        collision_side = self.collision_detector()
+        if collision_side == "TOP":
+            if self.velocity[1] < 0:
+                self.velocity[1] = 0
+        elif collision_side == "BOTTOM":
+            if self.velocity[1] > 0:
+                self.velocity[1] = 0
+        elif collision_side == "RIGHT":
+            if self.velocity[0] > 0:
+                self.velocity[0] = 0
+        elif collision_side == "LEFT":
+            if self.velocity[0] < 0:
+                self.velocity[0] = 0
 
         self.x_pos += self.velocity[0]
         self.y_pos += self.velocity[1]
@@ -181,57 +183,56 @@ class Robot:
         lidar.xy = (self.x_pos, self.y_pos)
         lasers = []
         for i in range(self.point_count):
-            if i == 43:
+            if i >= 0:
                 degree_multiplier = 365 / self.point_count
                 cur_angle = i * degree_multiplier
-                laser = pygame.sprite.Sprite()
                 laser = Vector2()
-                laser.from_polar((100, cur_angle))
+                laser.from_polar((200, cur_angle))
+                self.dummy_screen.fill((0, 0, 0, 0))
                 rect = pygame.draw.aaline(
-                    self.screen, (255, 0, 0), lidar, lidar + laser)
-                # laser_sprite = Laser(self.screen, rect, rect.left, rect.top, rect.width, rect.height)
-                laser_sprite = Laser(self.screen, lidar, lidar + laser)
-                olist = laser_sprite.mask.outline()
-                print(olist)
-                # pygame.draw.lines(screen, (150, 255, 0), 1, olist)
-                heading_direction = laser.normalize()
-                collide_point = (-1, -1)
-                # TODO: Find the closest collide point (SUPER SLOW???)
-                closest_point = (-1, -1)
-                for j in range(len(self.world.wall_list.sprites())):
-                    # cur_pos = Vector2(self.x_pos, self.y_pos)
-                    # for _ in range(int(laser.length())):
-                    #     cur_pos += heading_direction
-                        # pygame.draw.circle(self.screen, (0, 0, 255), (int(cur_pos.x), int(cur_pos.y)), 1)
-                    # print(self.world.wall_list.sprites()[j])
-                    if not pygame.sprite.collide_mask(laser_sprite, self.world.wall_list.sprites()[j]) == None:
-                        # print("collision")
-                        pass
-                        # collide_point = (cur_pos.x, cur_pos.y)
+                    self.dummy_screen, (255, 0, 0), lidar, lidar + laser, 1)
+                pygame.draw.line(self.screen, (255, 0, 0), lidar, lidar + laser, 1)
+                laser_mask = pygame.mask.from_surface(self.dummy_screen)
+                
+                # print(self.world.wall_list)
+                for j in range(len(self.world.wall_list)):
+                    self.dummy_world_screen.fill((0, 0, 0, 0))
+                    cur_wall = pygame.draw.rect(self.dummy_world_screen, (255, 0, 0), self.world.wall_list[j])
+                    world_mask = pygame.mask.from_threshold(self.dummy_world_screen, pygame.Color('red'), (1, 1, 1, 255))
+                    
+                    # print(rect[0], "-", cur_wall[0], "=", rect[0] - cur_wall[0])
+                    # print(rect[1], "-", cur_wall[1], "=", rect[1] - cur_wall[1])
+                    overlap = world_mask.overlap(laser_mask, (int((self.x_pos) - cur_wall.x), int((self.y_pos) - cur_wall.y)))
+                    # print("Overlap:", overlap)
+                    if overlap:
+                        pygame.draw.circle(self.screen, (0, 255, 0), overlap, 2)
+                # Draw mask REMOVE
+                # outline = world_mask.outline()
+                # if len(outline) > 0:
+                #     pygame.draw.lines(self.screen, (0, 255, 0), 1, outline)
+                    # pygame.draw.polygon(self.screen, (200,150,150), outline, 0)
+                
+                
+                
+                # heading_direction = laser.normalize()
+                # obs_found = False
+                # collide_point = (-1, -1)
+                # # TODO: Find the closest collide point (SUPER SLOW???)
+                # closest_point = (-1, -1)
+                # for j in range(len(self.world.wall_list)):
+                #     cur_pos = Vector2(self.x_pos, self.y_pos)
+                #     for _ in range(int(laser.length())):
+                #         cur_pos += heading_direction
+                #         # pygame.draw.circle(self.screen, (0, 0, 255), (int(cur_pos.x), int(cur_pos.y)), 1)
+                #         if self.world.wall_list[j].collidepoint(cur_pos):
+                #             collide_point = (cur_pos.x, cur_pos.y)
                 # if not collide_point == (-1, -1):
-                #     print(collide_point)
                 #     pygame.draw.circle(self.screen, (0, 0, 255), (int(collide_point[0]), int(collide_point[1])), 5)
-        # print()
+        print()
         # laser.from_polar((50, i * degree_multiplier))
         # rect = pygame.draw.aaline(self.screen, (255, 0, 0), lidar, lidar + laser)
         # laser = Vector2()
         # laser.from_polar((50, -self.direction + 90))
-
-
-class Wall(pygame.sprite.Sprite):
-    def __init__(self, p_screen, left, top, width, height):
-        pygame.sprite.Sprite.__init__(self)
-        self.rect = pygame.Rect(left, top, width, height)
-        self.image = pygame.Surface((width, height))
-        # pygame.draw.rect(self.image, (0, 0, 0), self.rect)
-        
-class Laser(pygame.sprite.Sprite):
-    def __init__(self, p_screen, start, end): #image, left, top, width, height):
-        pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.Surface(p_screen.get_size())
-        self.rect = pygame.draw.aaline(self.image, (255, 0, 0), start, end)
-        self.mask = pygame.mask.from_threshold(self.image, 250)
-        # print(self.mask)
 
 
 class World():
@@ -240,40 +241,35 @@ class World():
         self.size = 5
         self.grid = [[0 for _ in range(self.screen.get_size()[0] // 5)]
                      for __ in range(self.screen.get_size()[1] // 5)]
-        self.wall_list = pygame.sprite.RenderPlain()
+        self.wall_list = []
         self.write_map()
-        self.create_sprites()
+        self.draw()
 
     def write_map(self):
         # Drawing map
-        for i in range(len(self.grid)):
+        for i in range(len(self.grid[0])):
             for j in range(len(self.grid[0])):
-                if i == 0 or i == len(self.grid) - 1 or j == 0 or j == len(self.grid[0]) - 1:
-                    self.grid[i][j] = 1
-                else:
-                    self.grid[i][j] = 0
-                if i > 25 and i < 30:
+                # if i == 0 or i == len(self.grid) - 1 or j == 0 or j == len(self.grid[0]) - 1:
+                #     self.grid[i][j] = 1
+                # else:
+                #     self.grid[i][j] = 0
+                if i > 40 and i < 50:
                     if j > 25 and j < 30:
                         self.grid[i][j] = 1
 
-    def create_sprites(self):
-        self.wall_list.empty()
+    def draw(self):
+        self.wall_list = []
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
                 if self.grid[i][j]:
-                    wall_rect = Wall(screen,
-                                     i * self.size,
-                                     j * self.size,
-                                     self.size,
-                                     self.size)
-                    self.wall_list.add(wall_rect)
-        print(self.wall_list)
-
-    def draw(self):
-        self.wall_list.draw(self.screen)
-        # self.wall_list.RenderUpdates
-        # pygame.display.update()
-
+                    wall_rect = pygame.Rect(i * self.size,
+                                            j * self.size,
+                                            self.size,
+                                            self.size)
+                    self.wall_list.append(wall_rect)
+                    pygame.draw.rect(self.screen,
+                                     (0, 0, 0),
+                                     wall_rect)
 
 
 pygame.init()
@@ -291,8 +287,10 @@ gui.set_alpha(0)
 
 pygame.display.flip()
 
-world = World(screen)
-robot = Robot(screen, world)
+world_screen = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+world_screen.fill((255, 255, 255))
+world = World(world_screen)
+robot = Robot(screen, world, world_screen)
 robot.update()
 
 
@@ -300,6 +298,7 @@ playing_game = True
 while playing_game:
     clock.tick(45)
     screen.blit(background, (0, 0))
+    screen.blit(world_screen, (0, 0))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             playing_game = False
