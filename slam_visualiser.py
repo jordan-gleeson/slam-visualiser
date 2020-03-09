@@ -45,6 +45,8 @@ class RobotControl:
         self.angular_velocity = 4
         self.point_count = 10
         self.dummy_screen = pygame.Surface(self.screen.get_size())
+        self.collision_list = []
+        self.recursion_depth = 0
 
         # Lidar setup
         self.lasers = pygame.sprite.Group()
@@ -78,16 +80,21 @@ class RobotControl:
     def move_velocity(self):
         deceleration = self.acceleration / 2
         collision_side = self.collision_detector()
-        if collision_side == "TOP":
+        self.collision_list.append(collision_side)
+        if len(self.collision_list) > 3:
+            self.collision_list.pop(0)
+        if not collision_side:
+            self.collision_list = []
+        if "TOP" in self.collision_list:
             if self.velocity[1] < 0:
                 self.velocity[1] = 0
-        elif collision_side == "BOTTOM":
+        if "BOTTOM" in self.collision_list:
             if self.velocity[1] > 0:
                 self.velocity[1] = 0
-        elif collision_side == "RIGHT":
+        if "RIGHT" in self.collision_list:
             if self.velocity[0] > 0:
                 self.velocity[0] = 0
-        elif collision_side == "LEFT":
+        if "LEFT" in self.collision_list:
             if self.velocity[0] < 0:
                 self.velocity[0] = 0
 
@@ -165,27 +172,29 @@ class RobotControl:
         return self.cur_keys
 
     def collision_detector(self):
-        # TODO: Solve phasing through inverted corners due to alternating sides
         collision_list = pygame.sprite.spritecollide(self.robot,
                                                      self.world.wall_list,
                                                      False,
                                                      pygame.sprite.collide_mask)
         if len(collision_list) > 0:
-            closest_distance = 100
+            closest_distance = self.initial_laser_length
+            closest_wall = None
             for wall in collision_list:
                 cur_distance = point_distance(self.robot.x_pos,
                                               wall.rect.center[0],
                                               self.robot.y_pos,
                                               wall.rect.center[1])
                 if cur_distance < closest_distance:
+                    s_closest_wall = closest_wall
                     closest_wall = wall
                     closest_distance = cur_distance
+            if self.recursion_depth > 0 and not s_closest_wall is None:
+                closest_wall = s_closest_wall
             wall = closest_wall
             sides = [self.robot.hitbox.midtop, self.robot.hitbox.midright,
                      self.robot.hitbox.midbottom, self.robot.hitbox.midleft]
             closest_side = -1
             closest_side_distance = self.initial_laser_length
-            # for i in range(len(sides)):
             for i, side in enumerate(sides):
                 distance = point_distance(side[0],
                                           wall.rect.center[0],
@@ -194,16 +203,24 @@ class RobotControl:
                 if distance < closest_side_distance:
                     closest_side_distance = distance
                     closest_side = i
+            to_return = None
             if closest_side == 0:
-                return "TOP"
+                to_return = "TOP"
             if closest_side == 1:
-                return "RIGHT"
+                to_return = "RIGHT"
             if closest_side == 2:
-                return "BOTTOM"
+                to_return = "BOTTOM"
             if closest_side == 3:
-                return "LEFT"
-        else:
-            return None
+                to_return = "LEFT"
+            # If the robot is already colliding with a wall, collide the second closest wall
+            if len(self.collision_list) > 0:
+                if to_return == self.collision_list[len(self.collision_list) - 1]:
+                    if self.recursion_depth <= 1:
+                        self.recursion_depth += 1
+                        return self.collision_detector()
+            self.recursion_depth = 0
+            return to_return
+        return None
 
     def lidar(self):
         # TODO: Fix flickering on some diagonal lasers
@@ -359,7 +376,6 @@ class World():
                                      self.size,
                                      self.size)
                     self.wall_list.add(wall_rect)
-        print(self.wall_list)
 
     def draw(self):
         self.wall_list.draw(self.screen)
