@@ -1,92 +1,99 @@
-import time
 import pygame
-from pygame.math import Vector2
 import numpy as np
 
 
-class Robot:
-    def __init__(self, p_screen, p_world, p_background):
+class Robot(pygame.sprite.Sprite):
+    def __init__(self, p_screen):
         pygame.sprite.Sprite.__init__(self)
+        self.screen = p_screen
         self.image = pygame.image.load("roomba.png")
         self.image = pygame.transform.smoothscale(self.image, (50, 50))
         self.image_size = self.image.get_size()
         self.og_image = self.image.copy()
         self.rect = self.image.get_rect()
-        self.screen = p_screen
-        self.world = p_world
-        self.background = p_background
         self.x_pos = float(self.screen.get_size()[0] / 2)
         self.y_pos = float(self.screen.get_size()[1] / 2)
         self.rect.center = (self.x_pos, self.y_pos)
+        self.hitbox = pygame.Rect(self.x_pos - (self.image_size[0] / 2),
+                                  self.y_pos - (self.image_size[1] / 2),
+                                  self.image_size[0] + 2,
+                                  self.image_size[1] + 2)
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self):
+        self.rect.center = (self.x_pos, self.y_pos)
+        self.hitbox.center = (self.x_pos, self.y_pos)
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def rotate(self, direction):
+        self.image = pygame.transform.rotate(self.og_image, direction)
+        self.rect = self.image.get_rect()
+        self.rect.center = (self.x_pos, self.y_pos)
+
+
+class RobotControl:
+    def __init__(self, p_screen, p_world, p_background):
+        self.screen = p_screen
+        self.robot = Robot(self.screen)
+        self.world = p_world
+        self.background = p_background
         self.velocity = [0, 0, 0]  # (x_vel, y_vel) pixels/tick
         self.max_velocity = 2
         self.acceleration = 0.5
         self.cur_keys = []
         self.direction = 0
         self.angular_velocity = 4
-        self.hitbox = pygame.Rect(self.x_pos - (self.image_size[0] / 2),
-                                  self.y_pos - (self.image_size[1] / 2),
-                                  self.image_size[0] + 2,
-                                  self.image_size[1] + 2)
         self.point_count = 10
         self.dummy_screen = pygame.Surface(self.screen.get_size())
 
         # Lidar setup
         self.lasers = pygame.sprite.Group()
-        lidar = Vector2()
-        lidar.xy = (self.x_pos, self.y_pos)
+        lidar = pygame.math.Vector2()
+        lidar.xy = (self.robot.x_pos, self.robot.y_pos)
         self.initial_laser_length = self.screen.get_width() * 2
         for i in range(self.point_count):
-            if i == 4:
-                degree_multiplier = 360 / self.point_count
-                cur_angle = int(i * degree_multiplier)
-                laser = Vector2()
-                laser.from_polar((500, cur_angle))
-                laser_sprite = Laser(self.screen, lidar, laser)
-                self.lasers.add(laser_sprite)
+            degree_multiplier = 360 / self.point_count
+            cur_angle = int(i * degree_multiplier)
+            laser = pygame.math.Vector2()
+            laser.from_polar((self.initial_laser_length, cur_angle))
+            laser_sprite = Laser(self.screen, lidar, laser)
+            self.lasers.add(laser_sprite)
 
     def reset(self):
         print("Reseting...")
-        self.x_pos = self.screen.get_size()[0] / 2
-        self.y_pos = self.screen.get_size()[1] / 2
-        self.rect.center = (self.x_pos, self.y_pos)
+        self.robot.x_pos = self.screen.get_size()[0] / 2
+        self.robot.y_pos = self.screen.get_size()[1] / 2
+        self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
         self.velocity = [0, 0, 0]
         self.direction = 0
         self.update()
 
     def update(self):
         self.move_velocity()
-        self.rotate()
-        self.rect.center = (self.x_pos, self.y_pos)
-        self.hitbox.center = (self.x_pos, self.y_pos)
+        self.robot.rotate(self.direction)
+        self.robot.update()
         self.lidar()
-        self.screen.blit(self.image, self.rect)
-
-    def rotate(self):
-        self.image = pygame.transform.rotate(self.og_image, self.direction)
-        self.rect = self.image.get_rect()
-        self.rect.center = (self.x_pos, self.y_pos)
+        self.screen.blit(self.robot.image, self.robot.rect)
 
     def move_velocity(self):
         deceleration = self.acceleration / 2
-        # TODO: Re-implement
-        # collision_side = self.collision_detector()
-        # if collision_side == "TOP":
-        #     if self.velocity[1] < 0:
-        #         self.velocity[1] = 0
-        # elif collision_side == "BOTTOM":
-        #     if self.velocity[1] > 0:
-        #         self.velocity[1] = 0
-        # elif collision_side == "RIGHT":
-        #     if self.velocity[0] > 0:
-        #         self.velocity[0] = 0
-        # elif collision_side == "LEFT":
-        #     if self.velocity[0] < 0:
-        #         self.velocity[0] = 0
+        collision_side = self.collision_detector()
+        if collision_side == "TOP":
+            if self.velocity[1] < 0:
+                self.velocity[1] = 0
+        elif collision_side == "BOTTOM":
+            if self.velocity[1] > 0:
+                self.velocity[1] = 0
+        elif collision_side == "RIGHT":
+            if self.velocity[0] > 0:
+                self.velocity[0] = 0
+        elif collision_side == "LEFT":
+            if self.velocity[0] < 0:
+                self.velocity[0] = 0
 
-        self.x_pos += self.velocity[0]
-        self.y_pos += self.velocity[1]
-        self.rect.center = (self.x_pos, self.y_pos)
+        self.robot.x_pos += self.velocity[0]
+        self.robot.y_pos += self.velocity[1]
+        self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
 
         if "UP" not in self.cur_keys:
             if self.velocity[0] > 0:
@@ -159,44 +166,50 @@ class Robot:
 
     def collision_detector(self):
         # TODO: Solve phasing through inverted corners due to alternating sides
-        # TODO: Implement proper circle hitbox (subtractive from current?)
-        collision_list = self.hitbox.collidelistall(self.world.wall_list)
+        collision_list = pygame.sprite.spritecollide(self.robot,
+                                                     self.world.wall_list,
+                                                     False,
+                                                     pygame.sprite.collide_mask)
         if len(collision_list) > 0:
             closest_distance = 100
-            closest_iterator = 0
-            for i in range(len(collision_list)):
-                distance = np.sqrt(np.square(self.world.wall_list[collision_list[i]].center[0] - self.x_pos) + np.square(
-                    self.world.wall_list[collision_list[i]].center[1] - self.y_pos))
-                if distance < closest_distance:
-                    closest_distance = distance
-                    closest_iterator = i
-            wall = self.world.wall_list[collision_list[closest_iterator]]
-            closest_side_distance = 100
-            sides = [self.hitbox.midtop, self.hitbox.midright,
-                     self.hitbox.midbottom, self.hitbox.midleft]
+            for wall in collision_list:
+                cur_distance = point_distance(self.robot.x_pos,
+                                              wall.rect.center[0],
+                                              self.robot.y_pos,
+                                              wall.rect.center[1])
+                if cur_distance < closest_distance:
+                    closest_wall = wall
+                    closest_distance = cur_distance
+            wall = closest_wall
+            sides = [self.robot.hitbox.midtop, self.robot.hitbox.midright,
+                     self.robot.hitbox.midbottom, self.robot.hitbox.midleft]
             closest_side = -1
-            for i in range(len(sides)):
-                distance = np.sqrt(np.square(
-                    sides[i][0] - wall.center[0]) + np.square(sides[i][1] - wall.center[1]))
+            closest_side_distance = self.initial_laser_length
+            # for i in range(len(sides)):
+            for i, side in enumerate(sides):
+                distance = point_distance(side[0],
+                                          wall.rect.center[0],
+                                          side[1],
+                                          wall.rect.center[1])
                 if distance < closest_side_distance:
                     closest_side_distance = distance
                     closest_side = i
             if closest_side == 0:
                 return "TOP"
-            elif closest_side == 1:
+            if closest_side == 1:
                 return "RIGHT"
             if closest_side == 2:
                 return "BOTTOM"
-            elif closest_side == 3:
+            if closest_side == 3:
                 return "LEFT"
         else:
-            return "NONE"
+            return None
 
     def lidar(self):
         # TODO: Fix flickering on some diagonal lasers
         i = 0
-        lidar = Vector2()
-        lidar.xy = (self.x_pos, self.y_pos)
+        lidar = pygame.math.Vector2()
+        lidar.xy = (self.robot.x_pos, self.robot.y_pos)
         for sprite in self.lasers:
             sprite.origin = lidar
             sprite.update()
@@ -215,31 +228,39 @@ class Robot:
                 closest_wall = None
                 closest_distance = self.initial_laser_length
                 for wall in collide[laser]:
-                    cur_distance = np.sqrt(np.square(
-                        self.x_pos - wall.rect.center[0]) + np.square(self.y_pos - wall.rect.center[1]))
+                    cur_distance = point_distance(self.robot.x_pos,
+                                                  wall.rect.center[0],
+                                                  self.robot.y_pos,
+                                                  wall.rect.center[1])
                     if cur_distance < closest_distance:
                         closest_wall = wall
                         closest_distance = cur_distance
-                current_pos = Vector2()
-                current_pos.update(self.x_pos, self.y_pos)
-                heading = laser.angle.normalize()
+                current_pos = pygame.math.Vector2()
+                current_pos.update(self.robot.x_pos, self.robot.y_pos)
+                heading = laser.angle
                 direction = heading.normalize()
-                closest_point = (self.initial_laser_length, self.initial_laser_length)
+                closest_point = (self.initial_laser_length,
+                                 self.initial_laser_length)
                 for _ in range(self.initial_laser_length):
                     current_pos += direction
                     if closest_wall.rect.collidepoint(current_pos):
-                        closest_point = (int(current_pos.x), int(current_pos.y))
+                        closest_point = (int(current_pos.x),
+                                         int(current_pos.y))
                         break
-                new_length = np.sqrt(np.square(self.x_pos - closest_point[0]) + np.square(self.y_pos - closest_point[1]))
-                new_laser = Vector2()
+                new_length = point_distance(self.robot.x_pos,
+                                            closest_point[0],
+                                            self.robot.y_pos,
+                                            closest_point[1])
+                new_laser = pygame.math.Vector2()
                 new_laser.from_polar((new_length, laser.angle.as_polar()[1]))
                 pygame.draw.aaline(self.screen,
-                                       (255, 0, 0, 255),
-                                       lidar,
-                                       lidar + new_laser)
-                pygame.draw.circle(self.screen, 
-                                   (0, 0, 255, 255), 
-                                   (int(closest_point[0]), int(closest_point[1])), 
+                                   (255, 0, 0, 255),
+                                   lidar,
+                                   lidar + new_laser)
+                pygame.draw.circle(self.screen,
+                                   (0, 0, 255, 255),
+                                   (int(closest_point[0]),
+                                    int(closest_point[1])),
                                    3)
 
 
@@ -249,10 +270,10 @@ class Laser(pygame.sprite.Sprite):
         dummy_screen = pygame.Surface(
             (p_screen.get_height() * 2, p_screen.get_width() * 2),
             pygame.SRCALPHA)
-        dummy_rect = pygame.draw.aaline(dummy_screen,
-                                        (0, 255, 0, 255),
-                                        origin + origin,
-                                        origin + origin + angle)
+        dummy_rect = pygame.draw.line(dummy_screen,
+                                      (0, 255, 0, 255),
+                                      origin + origin,
+                                      origin + origin + angle)
         pygame.draw.circle(dummy_screen, (0, 0, 255, 255),
                            (int(origin.x), int(origin.y)), 5)
 
@@ -344,6 +365,10 @@ class World():
         self.wall_list.draw(self.screen)
 
 
+def point_distance(x_1, x_2, y_1, y_2):
+    return np.sqrt(np.square(x_1 - x_2) + np.square(y_1 - y_2))
+
+
 pygame.init()
 pygame.key.set_repeat(300, 30)
 screen = pygame.display.set_mode((400, 400), pygame.SRCALPHA)
@@ -360,7 +385,7 @@ gui.set_alpha(0)
 pygame.display.flip()
 
 world = World(screen)
-robot = Robot(screen, world, background)
+robot = RobotControl(screen, world, background)
 robot.update()
 
 
