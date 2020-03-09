@@ -3,6 +3,15 @@ import numpy as np
 
 
 class Robot(pygame.sprite.Sprite):
+    """Sprite for the robot player object.
+
+    Handles the attributes of the robot, including its collision mask. Also handles robot state
+    updates including translational and rotational changes.
+
+    Attributes:
+        p_screen: The main pygame screen surface.
+    """
+
     def __init__(self, p_screen):
         pygame.sprite.Sprite.__init__(self)
         self.screen = p_screen
@@ -32,12 +41,21 @@ class Robot(pygame.sprite.Sprite):
 
 
 class RobotControl:
-    def __init__(self, p_screen, p_world, p_background):
+    """Controls the robot.
+
+    Handles the robot's translation and rotation based on user input, including collisions,
+    acceleration and deceleration. Also contains the lidar sensor calculations.
+
+    Attributes:
+        p_screen: The main pygame screen surface.
+        p_world: The world map as drawn by the World class.
+    """
+
+    def __init__(self, p_screen, p_world):
         self.screen = p_screen
         self.robot = Robot(self.screen)
         self.world = p_world
-        self.background = p_background
-        self.velocity = [0, 0, 0]  # (x_vel, y_vel) pixels/tick
+        self.velocity = [0, 0, 0]  # (+x velocity, +y velocity, velocity magnitude) pixels/tick
         self.max_velocity = 2
         self.acceleration = 0.5
         self.cur_keys = []
@@ -282,6 +300,19 @@ class RobotControl:
 
 
 class Laser(pygame.sprite.Sprite):
+    """Sprite for the lidar sensor's laser beams.
+
+    Handles the attributes of each laser. Uses invisible surfaces to calculate positional offsets
+    for each laser depending on its given rotation. Also contains the laser's collision mask. It
+    also handles the positional updates sent from RobotControl.
+
+    Attributes:
+        p_screen: The main pygame screen surface.
+        origin: A pygame.math.Vector2() object that is the robot's base position.
+        angle: A pygame.math.Vector2() object that contains polar coordinates stating the laser's
+            length and direction angle.
+    """
+
     def __init__(self, p_screen, origin, angle):
         pygame.sprite.Sprite.__init__(self)
         dummy_screen = pygame.Surface(
@@ -329,7 +360,19 @@ class Laser(pygame.sprite.Sprite):
 
 
 class Wall(pygame.sprite.Sprite):
-    def __init__(self, p_screen, left, top, width, height):
+    """Sprite for the lidar sensor's laser beams.
+
+    Handles the attributes of each laser. Uses invisible surfaces to calculate positional offsets
+    for each laser depending on its given rotation. Also contains the laser's collision mask.
+
+    Attributes:
+        top: The desired pixel for the top of the wall.
+        left: The desired pixel for the left of the wall.
+        width: The desired width of the wall.
+        height: The desired height of the wall.
+    """
+
+    def __init__(self, left, top, width, height):
         pygame.sprite.Sprite.__init__(self)
         self.rect = pygame.Rect(left, top, width, height)
         self.color = (0, 0, 0, 255)
@@ -344,6 +387,14 @@ class Wall(pygame.sprite.Sprite):
 
 
 class World():
+    """Writes and draws the world map.
+
+    Handles the attributes for the world map and draws
+
+    Attributes:
+        p_screen: The main pygame screen surface.
+    """
+
     def __init__(self, p_screen):
         self.screen = p_screen
         self.size = 10
@@ -370,8 +421,7 @@ class World():
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
                 if self.grid[i][j]:
-                    wall_rect = Wall(screen,
-                                     i * self.size,
+                    wall_rect = Wall(i * self.size,
                                      j * self.size,
                                      self.size,
                                      self.size)
@@ -401,7 +451,7 @@ gui.set_alpha(0)
 pygame.display.flip()
 
 world = World(screen)
-robot = RobotControl(screen, world, background)
+robot = RobotControl(screen, world)
 robot.update()
 
 
