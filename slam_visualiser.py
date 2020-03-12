@@ -3,7 +3,7 @@ import numpy as np
 
 
 class Robot(pygame.sprite.Sprite):
-    """Sprite for the robot player object.
+    """Sprite  the robot player object.
 
     Handles the attributes of the robot, including its collision mask. Also handles robot state
     updates including translational and rotational changes.
@@ -30,17 +30,19 @@ class Robot(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
 
     def update(self):
+        """Updates the position of the robot's rect, hitbox and mask."""
         self.rect.center = (self.x_pos, self.y_pos)
         self.hitbox.center = (self.x_pos, self.y_pos)
         self.mask = pygame.mask.from_surface(self.image)
 
     def rotate(self, direction):
+        """Rotates the robot around it's centre."""
         self.image = pygame.transform.rotate(self.og_image, direction)
         self.rect = self.image.get_rect()
         self.rect.center = (self.x_pos, self.y_pos)
 
 
-class RobotControl:
+class RobotControl(object):
     """Controls the robot.
 
     Handles the robot's translation and rotation based on user input, including collisions,
@@ -55,7 +57,8 @@ class RobotControl:
         self.screen = p_screen
         self.robot = Robot(self.screen)
         self.world = p_world
-        self.velocity = [0, 0, 0]  # (+x velocity, +y velocity, velocity magnitude) pixels/tick
+        # (+x velocity, +y velocity, velocity magnitude) pixels/tick
+        self.velocity = [0, 0, 0]
         self.max_velocity = 2
         self.acceleration = 0.5
         self.cur_keys = []
@@ -80,7 +83,7 @@ class RobotControl:
             self.lasers.add(laser_sprite)
 
     def reset(self):
-        print("Reseting...")
+        """Reset the robot's attributes, including position and velocities."""
         self.robot.x_pos = self.screen.get_size()[0] / 2
         self.robot.y_pos = self.screen.get_size()[1] / 2
         self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
@@ -89,6 +92,7 @@ class RobotControl:
         self.update()
 
     def update(self):
+        """Update all aspects of the robot, including velocities, position and lidar sensor."""
         self.move_velocity()
         self.robot.rotate(self.direction)
         self.robot.update()
@@ -96,7 +100,15 @@ class RobotControl:
         self.screen.blit(self.robot.image, self.robot.rect)
 
     def move_velocity(self):
-        deceleration = self.acceleration / 2
+        """Controls the robot's position.
+
+        This function takes in the Robot.velocity vector. The collision method returns, what side,
+        if any, of the robot is colliding. It then sets the velocity in that direction to zero so
+        the robot will maintain it's velocity in the perpendicular axis, but stops moving towards
+        the collision. Then update the robot's position. If the robot isn't receiving input to move
+        forward, decelerate velocities.
+        """
+        # Check if a collision has occurred, and zero the velocity axis associated with it.
         collision_side = self.collision_detector()
         self.collision_list.append(collision_side)
         if len(self.collision_list) > 3:
@@ -116,10 +128,13 @@ class RobotControl:
             if self.velocity[0] < 0:
                 self.velocity[0] = 0
 
+        # Update robot position according to the velocity vector.
         self.robot.x_pos += self.velocity[0]
         self.robot.y_pos += self.velocity[1]
         self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
 
+        # Decelerate the velocity vector if no forward input is received.
+        deceleration = self.acceleration / 2
         if "UP" not in self.cur_keys:
             if self.velocity[0] > 0:
                 self.velocity[0] -= deceleration
@@ -135,23 +150,36 @@ class RobotControl:
                 self.velocity[1] = 0
 
     def change_velocity(self, keys):
+        """Controls the robot's velocity.
+
+        This function receives input from the user and updates the Robot.angular_velocity and
+        Robot.velocity vectors accordingly.
+
+        Attributes:
+            keys: An array containing the current state of all keys.
+        """
+        # Get input and sets the rotation according to the angular velocity.
         pressed_keys = self.convert_key(keys)
         if "R" in pressed_keys:
             self.reset()
         if "RIGHT" in pressed_keys:
-            self.direction -= 1 * self.angular_velocity
+            self.direction -= self.angular_velocity
         if "LEFT" in pressed_keys:
-            self.direction += 1 * self.angular_velocity
+            self.direction += self.angular_velocity
 
+        # Bind the direction to remain < 180 and > -180.
         if self.direction > 180:
             self.direction = -180 + (self.direction - 180)
         elif self.direction < -180:
             self.direction = 180 + (self.direction + 180)
 
+        # Calculate the current magnitude of the velocity vector.
         speed = self.acceleration * 2
         self.velocity[2] = np.sqrt(
             np.square(self.velocity[0]) + np.square(self.velocity[1]))
 
+        # Calculate the axis velocity components according to the current direction and desired
+        # speed.
         x_vec = np.cos(-1 * np.deg2rad(self.direction + 90)) * speed
         y_vec = np.sin(-1 * np.deg2rad(self.direction + 90)) * speed
         if "UP" in pressed_keys:
@@ -159,6 +187,8 @@ class RobotControl:
             self.velocity[1] += self.acceleration * y_vec
             self.velocity[2] = np.sqrt(
                 np.square(self.velocity[0]) + np.square(self.velocity[1]))
+            # Normalise the velocity vectors if the velocity's magnitude is greater than the
+            # desired maximum velocity.
             if self.velocity[2] > self.max_velocity:
                 divider = self.max_velocity / \
                     np.sqrt(
@@ -167,22 +197,31 @@ class RobotControl:
                 self.velocity[1] = divider * self.velocity[1]
 
     def convert_key(self, keys):
+        """Converts the pressed key information into a string array.
+
+        This function takes the passed array of pygame keys and converts it to a list of the
+        currently pressed keys.
+
+        Attributes:
+            keys: An array containing the current state of all keys.
+        """
         _action = False
         _keys_to_check = [[pygame.K_LEFT, "LEFT"],
                           [pygame.K_RIGHT, "RIGHT"],
                           [pygame.K_UP, "UP"],
                           [pygame.K_DOWN, "DOWN"],
                           [pygame.K_r, "R"]]
-        for i in range(len(_keys_to_check)):
-            if keys[_keys_to_check[i][0]]:
-                if _keys_to_check[i][1] not in self.cur_keys:
-                    self.cur_keys.append(_keys_to_check[i][1])
+        for _key in _keys_to_check:
+            if _key[0]:
+                if _key[1] not in self.cur_keys:
+                    self.cur_keys.append(_key[1])
                 _action = True
             else:
                 try:
-                    self.cur_keys.remove(_keys_to_check[i][1])
+                    self.cur_keys.remove(_key[1])
                 except ValueError:
                     pass
+        # When a key is added, remove the first keys so that only the last two remain
         if _action:
             self.cur_keys = self.cur_keys[-2:]
         else:
@@ -190,6 +229,13 @@ class RobotControl:
         return self.cur_keys
 
     def collision_detector(self):
+        """Finds if the robot is colliding and the associated side.
+
+        This function uses sprites to determine all of the objects the robot is colliding with,
+        then finds the closest wall to determine which side of the robot is colliding. To solve for
+        cases where the robot is colliding with two walls simultaneously, the function utilises
+        recursion to find the second closest wall.
+        """
         collision_list = pygame.sprite.spritecollide(self.robot,
                                                      self.world.wall_list,
                                                      False,
@@ -386,7 +432,7 @@ class Wall(pygame.sprite.Sprite):
         self.image.fill(color)
 
 
-class World():
+class World(object):
     """Writes and draws the world map.
 
     Handles the attributes for the world map and draws
