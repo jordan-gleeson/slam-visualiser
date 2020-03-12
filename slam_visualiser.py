@@ -455,6 +455,8 @@ robot = RobotControl(screen, world)
 robot.update()
 
 
+font = pygame.font.Font(None, 30)
+
 playing_game = True
 while playing_game:
     clock.tick(45)
@@ -466,6 +468,8 @@ while playing_game:
     robot.change_velocity(pygame.key.get_pressed())
     world.draw()
     robot.update()
+    fps = font.render(str(int(clock.get_fps())), True, pygame.Color('green'))
+    screen.blit(fps, (3, 3))
     pygame.display.update()
 
 pygame.quit()
