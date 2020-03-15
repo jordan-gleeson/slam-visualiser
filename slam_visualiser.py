@@ -212,7 +212,7 @@ class RobotControl(object):
                           [pygame.K_DOWN, "DOWN"],
                           [pygame.K_r, "R"]]
         for _key in _keys_to_check:
-            if _key[0]:
+            if keys[_key[0]]:
                 if _key[1] not in self.cur_keys:
                     self.cur_keys.append(_key[1])
                 _action = True
