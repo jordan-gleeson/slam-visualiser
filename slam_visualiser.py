@@ -241,6 +241,7 @@ class RobotControl(object):
                                                      False,
                                                      pygame.sprite.collide_mask)
         if len(collision_list) > 0:
+            # Find the closest colliding wall
             closest_distance = self.initial_laser_length
             closest_wall = None
             for wall in collision_list:
@@ -252,9 +253,12 @@ class RobotControl(object):
                     s_closest_wall = closest_wall
                     closest_wall = wall
                     closest_distance = cur_distance
+            # If performing recursion, find the second closest wall
             if self.recursion_depth > 0 and not s_closest_wall is None:
                 closest_wall = s_closest_wall
             wall = closest_wall
+
+            # Find which side of the robot is closest to the closest wall
             sides = [self.robot.hitbox.midtop, self.robot.hitbox.midright,
                      self.robot.hitbox.midbottom, self.robot.hitbox.midleft]
             closest_side = -1
@@ -276,6 +280,7 @@ class RobotControl(object):
                 to_return = "BOTTOM"
             if closest_side == 3:
                 to_return = "LEFT"
+
             # If the robot is already colliding with a wall, collide the second closest wall
             if len(self.collision_list) > 0:
                 if to_return == self.collision_list[len(self.collision_list) - 1]:
@@ -287,7 +292,14 @@ class RobotControl(object):
         return None
 
     def lidar(self):
+        """Performs all calculations for laser range finding and handles the drawing of lasers.
+
+        This function uses sprites to determine all of the objects each laser around the robot is
+        colliding with, then finds the closest wall. It then finds the closest point on that wall
+        to the robot.
+        """
         # TODO: Fix flickering on some diagonal lasers
+        # Update the position of each of the laser sprites in self.lasers
         i = 0
         lidar = pygame.math.Vector2()
         lidar.xy = (self.robot.x_pos, self.robot.y_pos)
@@ -296,19 +308,17 @@ class RobotControl(object):
             sprite.update()
             i += 1
 
-        color = (0, 0, 0, 255)
-        self.world.wall_list.update(color)
-        collide = pygame.sprite.groupcollide(self.lasers,
+        collision_list = pygame.sprite.groupcollide(self.lasers,
                                              self.world.wall_list,
                                              False,
                                              False,
                                              pygame.sprite.collide_mask)
-
-        if collide:
-            for laser in collide:
+        if collision_list:
+            for laser in collision_list:
+                # For each laser, find the closest wall to the robot it is colliding with
                 closest_wall = None
                 closest_distance = self.initial_laser_length
-                for wall in collide[laser]:
+                for wall in collision_list[laser]:
                     cur_distance = point_distance(self.robot.x_pos,
                                                   wall.rect.center[0],
                                                   self.robot.y_pos,
@@ -316,6 +326,8 @@ class RobotControl(object):
                     if cur_distance < closest_distance:
                         closest_wall = wall
                         closest_distance = cur_distance
+
+                # Find the closest point on the closest wall to the robot
                 current_pos = pygame.math.Vector2()
                 current_pos.update(self.robot.x_pos, self.robot.y_pos)
                 heading = laser.angle
@@ -328,6 +340,8 @@ class RobotControl(object):
                         closest_point = (int(current_pos.x),
                                          int(current_pos.y))
                         break
+
+                # Re-draw the laser's length to end at the point of collision
                 new_length = point_distance(self.robot.x_pos,
                                             closest_point[0],
                                             self.robot.y_pos,
@@ -361,6 +375,8 @@ class Laser(pygame.sprite.Sprite):
 
     def __init__(self, p_screen, origin, angle):
         pygame.sprite.Sprite.__init__(self)
+
+        # Use a "dummy" surface to determine the width and height of the rotated laser rect
         dummy_screen = pygame.Surface(
             (p_screen.get_height() * 2, p_screen.get_width() * 2),
             pygame.SRCALPHA)
@@ -368,12 +384,11 @@ class Laser(pygame.sprite.Sprite):
                                       (0, 255, 0, 255),
                                       origin + origin,
                                       origin + origin + angle)
-        pygame.draw.circle(dummy_screen, (0, 0, 255, 255),
-                           (int(origin.x), int(origin.y)), 5)
 
         self.origin = origin
         self.angle = angle
         int_angle = int(angle.as_polar()[1])
+        # Find an offset for the laser's draw position depending on its angle
         if int_angle >= 0 and int_angle <= 90:
             self.x_offset = 0
             self.y_offset = 0
@@ -399,6 +414,7 @@ class Laser(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
 
     def update(self):
+        """Update the laser's position."""
         self.new_start = (self.origin.x + self.x_offset,
                           self.origin.y + self.y_offset)
         self.rect.topleft = self.new_start
@@ -429,6 +445,10 @@ class Wall(pygame.sprite.Sprite):
                                                (1, 1, 1, 255))
 
     def update(self, color):
+        """Update the wall's colour.
+        
+        Used for debugging purposes only at this stage.
+        """
         self.image.fill(color)
 
 
@@ -451,7 +471,7 @@ class World(object):
         self.create_sprites()
 
     def write_map(self):
-        # Drawing map
+        """Draws the world map into an array of 1s and 0s."""
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
                 if i == 0 or i == len(self.grid) - 1 or j == 0 or j == len(self.grid[0]) - 1:
@@ -463,6 +483,7 @@ class World(object):
                         self.grid[i][j] = 1
 
     def create_sprites(self):
+        """Add sprites in the positions indicated by the self.grid array to a sprite group."""
         self.wall_list.empty()
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
@@ -474,10 +495,12 @@ class World(object):
                     self.wall_list.add(wall_rect)
 
     def draw(self):
+        """Draw the ."""
         self.wall_list.draw(self.screen)
 
 
 def point_distance(x_1, x_2, y_1, y_2):
+    """Find the distance between two points on a 2D plane."""
     return np.sqrt(np.square(x_1 - x_2) + np.square(y_1 - y_2))
 
 
