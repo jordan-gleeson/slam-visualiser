@@ -1,5 +1,7 @@
 import pygame
 import numpy as np
+import threading
+import time
 
 
 class Robot(pygame.sprite.Sprite):
@@ -59,15 +61,16 @@ class RobotControl(object):
         self.world = p_world
         # (+x velocity, +y velocity, velocity magnitude) pixels/tick
         self.velocity = [0, 0, 0]
-        self.max_velocity = 2
-        self.acceleration = 0.5
+        self.max_velocity = 4
+        self.acceleration = 1
         self.cur_keys = []
         self.direction = 0
-        self.angular_velocity = 4
-        self.point_count = 10
+        self.angular_velocity = 10
+        self.point_count = 180
         self.dummy_screen = pygame.Surface(self.screen.get_size())
         self.collision_list = []
         self.recursion_depth = 0
+        self.point_cloud = []
 
         # Lidar setup
         self.lasers = pygame.sprite.Group()
@@ -96,8 +99,10 @@ class RobotControl(object):
         self.move_velocity()
         self.robot.rotate(self.direction)
         self.robot.update()
-        self.lidar()
-        self.screen.blit(self.robot.image, self.robot.rect)
+
+    def draw(self):
+        """Draws the robot."""
+        robot.screen.blit(robot.robot.image.copy(), robot.robot.rect)
 
     def move_velocity(self):
         """Controls the robot's position.
@@ -300,6 +305,7 @@ class RobotControl(object):
         """
         # TODO: Fix flickering on some diagonal lasers
         # Update the position of each of the laser sprites in self.lasers
+        # print("lidar")
         i = 0
         lidar = pygame.math.Vector2()
         lidar.xy = (self.robot.x_pos, self.robot.y_pos)
@@ -340,23 +346,26 @@ class RobotControl(object):
                         closest_point = (int(current_pos.x),
                                          int(current_pos.y))
                         break
-
+                self.point_cloud.append(closest_point)
+                if len(self.point_cloud) > self.point_count:
+                    self.point_cloud.pop(0)
+                print(len(self.point_cloud))
                 # Re-draw the laser's length to end at the point of collision
-                new_length = point_distance(self.robot.x_pos,
-                                            closest_point[0],
-                                            self.robot.y_pos,
-                                            closest_point[1])
-                new_laser = pygame.math.Vector2()
-                new_laser.from_polar((new_length, laser.angle.as_polar()[1]))
-                pygame.draw.aaline(self.screen,
-                                   (255, 0, 0, 255),
-                                   lidar,
-                                   lidar + new_laser)
-                pygame.draw.circle(self.screen,
-                                   (0, 0, 255, 255),
-                                   (int(closest_point[0]),
-                                    int(closest_point[1])),
-                                   3)
+                # new_length = point_distance(self.robot.x_pos,
+                #                             closest_point[0],
+                #                             self.robot.y_pos,
+                #                             closest_point[1])
+                # new_laser = pygame.math.Vector2()
+                # new_laser.from_polar((new_length, laser.angle.as_polar()[1]))
+                # pygame.draw.aaline(self.screen,
+                #                    (255, 0, 0, 255),
+                #                    lidar,
+                #                    lidar + new_laser)
+                # pygame.draw.circle(self.screen,
+                #                    (0, 0, 255, 255),
+                #                    (int(closest_point[0]),
+                #                     int(closest_point[1])),
+                #                    3)
 
 
 class Laser(pygame.sprite.Sprite):
@@ -525,20 +534,55 @@ robot.update()
 
 
 font = pygame.font.Font(None, 30)
+cur_fps_mod = 0
+desired_fps = 25
+cur_time = time.time()
+prev_time = time.time()
+
+def update_screen():
+    global cur_fps_mod
+    # clock.tick(25 + cur_fps_mod)
+    global prev_time
+    cur_time = time.time()
+    fps = (int(1/(cur_time - prev_time)))
+    prev_time = cur_time
+    screen.blit(background, (0, 0))
+    robot.change_velocity(pygame.key.get_pressed())
+    robot.update()
+    # print("Update")
+    world.draw()
+    # print(2)
+    robot.draw()
+    for point in robot.point_cloud:
+        pygame.draw.circle(screen,
+                           (0, 0, 255, 255),
+                           (int(point[0]), int(point[1])),
+                           3)
+    # print(3)
+    # fps = int(clock.get_fps())
+    fps_disp = font.render(str(fps), True, pygame.Color('green'))
+    screen.blit(fps_disp, (3, 3))
+    # print(4)
+    pygame.display.update()
+    # print(5)
+    if fps < desired_fps:
+        cur_fps_mod += 0.1
+    elif fps > desired_fps:
+        cur_fps_mod -= 0.1
+    # print(cur_fps_mod)
+    threading.Timer(1 / (50 + cur_fps_mod), update_screen).start()
+
+threading.Timer(1/30, update_screen).start()
 
 playing_game = True
 while playing_game:
-    clock.tick(45)
-    screen.blit(background, (0, 0))
+    # print("lidar")
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             playing_game = False
             break
-    robot.change_velocity(pygame.key.get_pressed())
-    world.draw()
-    robot.update()
-    fps = font.render(str(int(clock.get_fps())), True, pygame.Color('green'))
-    screen.blit(fps, (3, 3))
-    pygame.display.update()
+    
+    robot.lidar()
+    
 
 pygame.quit()
