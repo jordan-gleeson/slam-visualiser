@@ -349,18 +349,19 @@ class RobotControl(object):
                 self.point_cloud.append(closest_point)
                 if len(self.point_cloud) > self.point_count:
                     self.point_cloud.pop(0)
-                print(len(self.point_cloud))
+                # print(len(self.point_cloud))
                 # Re-draw the laser's length to end at the point of collision
-                # new_length = point_distance(self.robot.x_pos,
-                #                             closest_point[0],
-                #                             self.robot.y_pos,
-                #                             closest_point[1])
-                # new_laser = pygame.math.Vector2()
-                # new_laser.from_polar((new_length, laser.angle.as_polar()[1]))
-                # pygame.draw.aaline(self.screen,
-                #                    (255, 0, 0, 255),
-                #                    lidar,
-                #                    lidar + new_laser)
+                new_length = point_distance(self.robot.x_pos,
+                                            closest_point[0],
+                                            self.robot.y_pos,
+                                            closest_point[1])
+                new_laser = pygame.math.Vector2()
+                new_laser.from_polar((new_length, laser.angle.as_polar()[1]))
+                pygame.draw.aaline(self.screen,
+                                   (255, 0, 0, 255),
+                                   lidar,
+                                   lidar + new_laser)
+                print("Laser angle:", laser.get_angle())
                 # pygame.draw.circle(self.screen,
                 #                    (0, 0, 255, 255),
                 #                    (int(closest_point[0]),
@@ -428,6 +429,9 @@ class Laser(pygame.sprite.Sprite):
                           self.origin.y + self.y_offset)
         self.rect.topleft = self.new_start
         self.mask = pygame.mask.from_surface(self.image)
+    
+    def get_angle(self):
+        return int(self.angle.as_polar()[1])
 
 
 class Wall(pygame.sprite.Sprite):
@@ -549,7 +553,7 @@ def update_screen():
     screen.blit(background, (0, 0))
     robot.change_velocity(pygame.key.get_pressed())
     robot.update()
-    # print("Update")
+    print("Update", cur_fps_mod, fps)
     world.draw()
     # print(2)
     robot.draw()
@@ -572,7 +576,7 @@ def update_screen():
     # print(cur_fps_mod)
     threading.Timer(1 / (50 + cur_fps_mod), update_screen).start()
 
-threading.Timer(1/30, update_screen).start()
+threading.Timer(1/50, update_screen).start()
 
 playing_game = True
 while playing_game:
