@@ -34,10 +34,14 @@ class Robot(pygame.sprite.Sprite):
 
         # Lidar setup
         self.point_cloud = []
-        self.sample_rate = 2  # Hz
+        self.sample_rate = 6  # Hz
         self.lidar_state = 0
-        self.sample_count = 30
-        
+        self.sample_count = 180
+
+        # TEMP for timer
+        self.avg_sum = 0
+        self.state_count = 1
+
         self.lasers = pygame.sprite.Group()
         lidar = pygame.math.Vector2()
         lidar.xy = (self.x_pos, self.y_pos)
@@ -56,6 +60,11 @@ class Robot(pygame.sprite.Sprite):
         self.hitbox.center = (self.x_pos, self.y_pos)
         self.mask = pygame.mask.from_surface(self.image)
         self.lidar()
+        for _point in self.point_cloud:
+            pygame.draw.circle(self.screen,
+                               (0, 0, 255, 255),
+                               _point,
+                               3)
 
     def rotate(self, direction):
         """Rotates the robot around it's centre."""
@@ -70,26 +79,26 @@ class Robot(pygame.sprite.Sprite):
         colliding with, then finds the closest wall. It then finds the closest point on that wall
         to the robot.
         """
+        time_before = time.time()
         # TODO: Fix flickering on some diagonal lasers
-        # max_state = self.sample_count / (30 / self.sample_rate)
-        iterations_per = self.sample_count // (30 // self.sample_rate)
-
+        # TODO: Optimisation
+        _iterations_per_frame = int(
+            self.sample_count / (30 / self.sample_rate))
+        _slice_from = self.lidar_state * _iterations_per_frame
+        _slice_to = _slice_from + _iterations_per_frame
         # Update the position of each of the laser sprites in self.lasers
-        i = 0
         lidar = pygame.math.Vector2()
         lidar.xy = (self.x_pos, self.y_pos)
-        print(self.lidar_state * iterations_per, iterations_per)
-        for sprite in self.lasers.sprites()[self.lidar_state * iterations_per::iterations_per]:
+        for sprite in self.lasers.sprites()[_slice_from:_slice_to]:
             sprite.origin = lidar
             sprite.update()
-            i += 1
 
-        collision_list = pygame.sprite.groupcollide(self.lasers.sprites()[self.lidar_state * iterations_per::iterations_per],
-                                             self.world.wall_list,
-                                             False,
-                                             False,
-                                             pygame.sprite.collide_mask)
-        print(collision_list)
+        collision_list = pygame.sprite.groupcollide(self.lasers.sprites()[_slice_from:_slice_to],
+                                                    self.world.wall_list,
+                                                    False,
+                                                    False,
+                                                    pygame.sprite.collide_mask)
+
         if collision_list:
             for laser in collision_list:
                 # For each laser, find the closest wall to the robot it is colliding with
@@ -117,33 +126,38 @@ class Robot(pygame.sprite.Sprite):
                         closest_point = (int(current_pos.x),
                                          int(current_pos.y))
                         break
-                
+
                 # Write resulting point to the point cloud
                 self.point_cloud.append(closest_point)
                 if len(self.point_cloud) > self.sample_count:
                     self.point_cloud.pop(0)
 
                 # Re-draw the laser's length to end at the point of collision
-                new_length = point_distance(self.x_pos,
-                                            closest_point[0],
-                                            self.y_pos,
-                                            closest_point[1])
-                new_laser = pygame.math.Vector2()
-                new_laser.from_polar((new_length, laser.angle.as_polar()[1]))
-                pygame.draw.aaline(self.screen,
-                                   (255, 0, 0, 255),
-                                   lidar,
-                                   lidar + new_laser)
-                pygame.draw.circle(self.screen,
-                                   (0, 0, 255, 255),
-                                   (int(closest_point[0]),
-                                    int(closest_point[1])),
-                                   3)
-        if self.lidar_state ==  (30 / self.sample_rate) - 1:
+                # new_length = point_distance(self.x_pos,
+                #                             closest_point[0],
+                #                             self.y_pos,
+                #                             closest_point[1])
+                # new_laser = pygame.math.Vector2()
+                # new_laser.from_polar((new_length, laser.angle.as_polar()[1]))
+                # Draw new lasers and collision points
+                # pygame.draw.aaline(self.screen,
+                #                    (255, 0, 0, 255),
+                #                    lidar,
+                #                    lidar + new_laser)
+                # pygame.draw.circle(self.screen,
+                #                    (0, 0, 255, 255),
+                #                    (int(closest_point[0]),
+                #                     int(closest_point[1])),
+                #                    3)
+
+        if self.lidar_state == (30 // self.sample_rate):
             self.lidar_state = 0
         else:
             self.lidar_state += 1
-        time.sleep(1)
+        # time_taken = time.time() - time_before
+        # self.avg_sum += time_taken
+        # print("Time taken:", round((self.avg_sum / self.state_count) * 1000, 1), "ms")
+        # self.state_count += 1
 
 
 class RobotControl(object):
@@ -468,7 +482,7 @@ class Wall(pygame.sprite.Sprite):
 
     def update(self, color):
         """Update the wall's colour.
-        
+
         Used for debugging purposes only at this stage.
         """
         self.image.fill(color)
