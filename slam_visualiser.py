@@ -489,14 +489,14 @@ class World(object):
 
     def write_map(self):
         """Draws the world map into an array of 1s and 0s."""
-        for i in range(len(self.grid)):
-            for j in range(len(self.grid[0])):
+        for i, _ in enumerate(self.grid):
+            for j, __ in enumerate(self.grid[0]):
                 if i == 0 or i == len(self.grid) - 1 or j == 0 or j == len(self.grid[0]) - 1:
                     self.grid[i][j] = 1
                 else:
                     self.grid[i][j] = 0
-                if i > 25 and i < 30:
-                    if j > 25 and j < 30:
+                if i > 20 and i < 30:
+                    if j > 20 and j < 30:
                         self.grid[i][j] = 1
 
     def create_sprites(self):
@@ -505,8 +505,8 @@ class World(object):
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
                 if self.grid[i][j]:
-                    wall_rect = Wall(i * self.size,
-                                     j * self.size,
+                    wall_rect = Wall(j * self.size,
+                                     i * self.size,
                                      self.size,
                                      self.size)
                     self.wall_list.add(wall_rect)
