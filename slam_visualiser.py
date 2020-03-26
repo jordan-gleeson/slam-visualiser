@@ -31,12 +31,13 @@ class Robot(pygame.sprite.Sprite):
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
         self.mask = pygame.mask.from_surface(self.image)
+        self.draw_lidar = True
 
         # Lidar setup
         self.point_cloud = []
-        self.sample_rate = 6  # Hz
+        self.sample_rate = 5  # Hz
         self.lidar_state = 0
-        self.sample_count = 180
+        self.sample_count = 90
 
         # TEMP for timer
         self.avg_sum = 0
@@ -53,6 +54,7 @@ class Robot(pygame.sprite.Sprite):
             laser.from_polar((self.initial_laser_length, cur_angle))
             laser_sprite = Laser(self.screen, lidar, laser)
             self.lasers.add(laser_sprite)
+        self.lasers_draw = pygame.sprite.Group()
 
     def update(self):
         """Updates the position of the robot's rect, hitbox and mask."""
@@ -60,11 +62,16 @@ class Robot(pygame.sprite.Sprite):
         self.hitbox.center = (self.x_pos, self.y_pos)
         self.mask = pygame.mask.from_surface(self.image)
         self.lidar()
-        for _point in self.point_cloud:
-            pygame.draw.circle(self.screen,
-                               (0, 0, 255, 255),
-                               _point,
-                               3)
+        if self.draw_lidar:
+            for _point in self.point_cloud:
+                pygame.draw.aaline(self.screen,
+                                   (255, 0, 0, 255),
+                                   (self.x_pos, self.y_pos),
+                                   _point)
+                pygame.draw.circle(self.screen,
+                                   (0, 0, 255, 255),
+                                   _point,
+                                   3)
 
     def rotate(self, direction):
         """Rotates the robot around it's centre."""
@@ -124,40 +131,23 @@ class Robot(pygame.sprite.Sprite):
                     current_pos += direction
                     if closest_wall.rect.collidepoint(current_pos):
                         closest_point = (int(current_pos.x),
-                                         int(current_pos.y))
+                                         int(current_pos.y)) 
                         break
 
                 # Write resulting point to the point cloud
-                self.point_cloud.append(closest_point)
-                if len(self.point_cloud) > self.sample_count:
-                    self.point_cloud.pop(0)
-
-                # Re-draw the laser's length to end at the point of collision
-                # new_length = point_distance(self.x_pos,
-                #                             closest_point[0],
-                #                             self.y_pos,
-                #                             closest_point[1])
-                # new_laser = pygame.math.Vector2()
-                # new_laser.from_polar((new_length, laser.angle.as_polar()[1]))
-                # Draw new lasers and collision points
-                # pygame.draw.aaline(self.screen,
-                #                    (255, 0, 0, 255),
-                #                    lidar,
-                #                    lidar + new_laser)
-                # pygame.draw.circle(self.screen,
-                #                    (0, 0, 255, 255),
-                #                    (int(closest_point[0]),
-                #                     int(closest_point[1])),
-                #                    3)
+                if not closest_point == (self.initial_laser_length, self.initial_laser_length):
+                    self.point_cloud.append(closest_point)                
+                    if len(self.point_cloud) > self.sample_count:
+                        self.point_cloud.pop(0)
 
         if self.lidar_state == (30 // self.sample_rate):
             self.lidar_state = 0
         else:
             self.lidar_state += 1
-        # time_taken = time.time() - time_before
-        # self.avg_sum += time_taken
+        time_taken = time.time() - time_before
+        self.avg_sum += time_taken
         # print("Time taken:", round((self.avg_sum / self.state_count) * 1000, 1), "ms")
-        # self.state_count += 1
+        self.state_count += 1
 
 
 class RobotControl(object):
