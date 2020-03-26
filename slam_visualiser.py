@@ -39,10 +39,6 @@ class Robot(pygame.sprite.Sprite):
         self.lidar_state = 0
         self.sample_count = 90
 
-        # TEMP for timer
-        self.avg_sum = 0
-        self.state_count = 1
-
         self.lasers = pygame.sprite.Group()
         lidar = pygame.math.Vector2()
         lidar.xy = (self.x_pos, self.y_pos)
@@ -86,7 +82,6 @@ class Robot(pygame.sprite.Sprite):
         colliding with, then finds the closest wall. It then finds the closest point on that wall
         to the robot.
         """
-        time_before = time.time()
         # TODO: Fix flickering on some diagonal lasers
         # TODO: Optimisation
         _iterations_per_frame = int(
@@ -144,10 +139,6 @@ class Robot(pygame.sprite.Sprite):
             self.lidar_state = 0
         else:
             self.lidar_state += 1
-        time_taken = time.time() - time_before
-        self.avg_sum += time_taken
-        # print("Time taken:", round((self.avg_sum / self.state_count) * 1000, 1), "ms")
-        self.state_count += 1
 
 
 class RobotControl(object):
