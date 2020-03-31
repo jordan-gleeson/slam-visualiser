@@ -31,13 +31,13 @@ class Robot(pygame.sprite.Sprite):
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
         self.mask = pygame.mask.from_surface(self.image)
-        self.draw_lidar = True
+        self.draw_lidar = False
 
         # Lidar setup
         self.point_cloud = []
-        self.sample_rate = 2  # Hz
+        self.sample_rate = 5  # Hz
         self.lidar_state = 0
-        self.sample_count = 360
+        self.sample_count = 180
 
         # TEMP for timer
         self.avg_sum = 0
@@ -60,7 +60,6 @@ class Robot(pygame.sprite.Sprite):
         """Updates the position of the robot's rect, hitbox and mask."""
         self.rect.center = (self.x_pos, self.y_pos)
         self.hitbox.center = (self.x_pos, self.y_pos)
-        self.mask = pygame.mask.from_surface(self.image)
         self.lidar()
         if self.draw_lidar:
             for _point in self.point_cloud:
@@ -103,22 +102,18 @@ class Robot(pygame.sprite.Sprite):
             sprite.update()
 
         # Cut up walls to quadrants WHY IS 45 degrees MISSING???
-        _quad_list = [[[0, 90], ["greater"], ["greater"]],
+        _quad_list = [[[0, 90], ["greater"], ["greater"]],  # [[Min Deg, Max deg], [Greater/less, x], [Greater/less, y]]
                       [[90, 181], ["less"], ["greater"]],
                       [[-90, 0], ["greater"], ["less"]],
-                      [[-181, -90], ["less"], ["less"]]]  # [[Min Deg, Max deg], [Greater/less, x], [Greater/less, y]]
+                      [[-181, -90], ["less"], ["less"]]]
         collision_list = {}
         _pixel_buffer = 20
-        # print("total walls:", len(self.world.wall_list))
-        # print("slice:", _slice_from, _slice_to)
         for _quad in _quad_list:
             _quad_lasers = pygame.sprite.Group()
             _quad_walls = pygame.sprite.Group()
             for _laser in self.lasers.sprites()[_slice_from:_slice_to]:
                 _cur_angle = int(_laser.angle.as_polar()[1])
-                # print(_cur_angle, ">=", _quad[0][0], "and", _cur_angle, "<", _quad[0][1])
                 if _cur_angle >= _quad[0][0] and _cur_angle < _quad[0][1]:
-                    print("Success Angle:", _quad, _cur_angle)
                     _quad_lasers.add(_laser)
             for _wall in self.world.wall_list:
                 _cur_pos = _wall.rect.center
@@ -140,25 +135,13 @@ class Robot(pygame.sprite.Sprite):
                                 _quad_walls.add(_wall)
                 
             time_before = time.time()
-            # print("Lengths:", len(_quad_lasers), len(_quad_walls), _quad)
-            # print()
-            # _quad_walls.update((0, 255, 0))
             collision_list.update(pygame.sprite.groupcollide(_quad_lasers,
                                                             _quad_walls,
                                                             False,
                                                             False,
                                                             pygame.sprite.collide_mask))
-            time_taken = time.time() - time_before
-        print(collision_list)
-        # print("DONEs")                
-        
-        # collision_list = pygame.sprite.groupcollide(self.lasers.sprites()[_slice_from:_slice_to],
-        #                                                     self.world.wall_list,
-        #                                                     False,
-        #                                                     False,
-        #                                                     pygame.sprite.collide_mask)
-        # time_taken = time.time() - time_before
-        # time_before = time.time()
+        time_taken = time.time() - time_before
+
         if collision_list:
             for laser in collision_list:
                 # For each laser, find the closest wall to the robot it is colliding with
@@ -177,9 +160,6 @@ class Robot(pygame.sprite.Sprite):
                 current_pos = pygame.math.Vector2()
                 current_pos.update(self.x_pos, self.y_pos)
                 heading = laser.angle
-                print(int(heading.as_polar()[1]))
-                # if int(heading.as_polar()[1]) == 45:
-                #     print("Got 45")
                 direction = heading.normalize()
                 closest_point = (self.initial_laser_length,
                                  self.initial_laser_length)
@@ -200,7 +180,7 @@ class Robot(pygame.sprite.Sprite):
             self.lidar_state = 0
         else:
             self.lidar_state += 1
-        # time_taken = time.time() - time_before
+        time_taken = time.time() - time_before
         self.avg_sum += time_taken
         print("Time taken:", round((self.avg_sum / self.state_count) * 1000, 1), "ms")
         self.state_count += 1
@@ -493,7 +473,7 @@ class Laser(pygame.sprite.Sprite):
                                        (255, 0, 0, 255),
                                        (-self.x_offset, - self.y_offset),
                                        (int(angle.x - self.x_offset), int(angle.y - self.y_offset)))
-        self.mask = pygame.mask.from_surface(self.image)
+        self.mask = pygame.mask.from_surface(self.image, 50)
 
     def update(self):
         """Update the laser's position."""
@@ -503,6 +483,13 @@ class Laser(pygame.sprite.Sprite):
         # print("time taken new start:", round((time.time() - time_before1) * 10000000, 1), "fs")
         # time_before2 = time.time()
         self.rect.topleft = self.new_start
+        # self.mask = pygame.mask.from_surface(self.image)
+        # if int(self.angle.as_polar()[1]) == 45 or int(self.angle.as_polar()[1]) == -135:
+        #     # print("Got here", int(self.angle.as_polar()[1]))
+        #     olist = self.mask.outline()
+        #     print(olist)
+        #     if olist:
+        #         pygame.draw.lines(self.screen,(0,250,0),1,olist)
         # print("time taken rect move:", round((time.time() - time_before2) * 10000000, 1), "fs")
         # time_before3 = time.time()
         # self.mask = pygame.mask.from_surface(self.image)
