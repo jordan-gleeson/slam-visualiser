@@ -1,6 +1,7 @@
 import pygame
 import numpy as np
 import time
+import operator
 
 
 class Robot(pygame.sprite.Sprite):
@@ -31,17 +32,13 @@ class Robot(pygame.sprite.Sprite):
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
         self.mask = pygame.mask.from_surface(self.image)
-        self.draw_lidar = False
+        self.draw_lidar = True
 
         # Lidar setup
         self.point_cloud = []
         self.sample_rate = 5  # Hz
         self.lidar_state = 0
         self.sample_count = 180
-
-        # TEMP for timer
-        self.avg_sum = 0
-        self.state_count = 1
 
         self.lasers = pygame.sprite.Group()
         lidar = pygame.math.Vector2()
@@ -86,8 +83,6 @@ class Robot(pygame.sprite.Sprite):
         to the robot.
         """
         # TODO: Fix flickering on some diagonal lasers
-        # TODO: Optimisation
-        time_before = time.time()
         _iterations_per_frame = int(
             self.sample_count / (30 / self.sample_rate))
         _slice_from = self.lidar_state * _iterations_per_frame
@@ -95,19 +90,17 @@ class Robot(pygame.sprite.Sprite):
         # Update the position of each of the laser sprites in self.lasers
         lidar = pygame.math.Vector2()
         lidar.xy = (self.x_pos, self.y_pos)
-        # time_taken = time.time() - time_before
-        time_before = time.time()
         for sprite in self.lasers.sprites()[_slice_from:_slice_to]:
             sprite.origin = lidar
             sprite.update()
 
-        # Cut up walls to quadrants WHY IS 45 degrees MISSING???
-        _quad_list = [[[0, 90], ["greater"], ["greater"]],  # [[Min Deg, Max deg], [Greater/less, x], [Greater/less, y]]
-                      [[90, 181], ["less"], ["greater"]],
-                      [[-90, 0], ["greater"], ["less"]],
-                      [[-181, -90], ["less"], ["less"]]]
+        # Check wall collisions in quadrants
+        _quad_list = [[[0, 90], operator.ge, operator.ge],
+                      [[90, 181], operator.lt, operator.ge],
+                      [[-90, 0], operator.ge, operator.lt],
+                      [[-181, -90], operator.lt, operator.lt]]
         collision_list = {}
-        _pixel_buffer = 20
+        _pixel_buffer = self.world.size * 2
         for _quad in _quad_list:
             _quad_lasers = pygame.sprite.Group()
             _quad_walls = pygame.sprite.Group()
@@ -117,30 +110,22 @@ class Robot(pygame.sprite.Sprite):
                     _quad_lasers.add(_laser)
             for _wall in self.world.wall_list:
                 _cur_pos = _wall.rect.center
-                if "greater" in _quad[1]:
-                    if _cur_pos[0] >= self.x_pos - _pixel_buffer:
-                        if "greater" in _quad[2]:
-                            if _cur_pos[1] >= self.y_pos - _pixel_buffer:
-                                _quad_walls.add(_wall)
-                        elif "less" in _quad[2]:
-                            if _cur_pos[1] < self.y_pos + _pixel_buffer:
-                                _quad_walls.add(_wall)
-                elif "less" in _quad[1]:
-                    if _cur_pos[0] < self.x_pos + _pixel_buffer:
-                        if "greater" in _quad[2]:
-                            if _cur_pos[1] >= self.y_pos - _pixel_buffer:
-                                _quad_walls.add(_wall)
-                        elif "less" in _quad[2]:
-                            if _cur_pos[1] < self.y_pos + _pixel_buffer:
-                                _quad_walls.add(_wall)
-                
-            time_before = time.time()
+                if _quad[1] == operator.ge:
+                    _x_buf = self.x_pos - _pixel_buffer
+                else:
+                    _x_buf = self.x_pos + _pixel_buffer
+                if _quad[2] == operator.ge:
+                    _y_buf = self.y_pos - _pixel_buffer
+                else:
+                    _y_buf = self.y_pos + _pixel_buffer
+                if _quad[1](_cur_pos[0], _x_buf):
+                    if _quad[2](_cur_pos[1], _y_buf):
+                        _quad_walls.add(_wall)
             collision_list.update(pygame.sprite.groupcollide(_quad_lasers,
                                                             _quad_walls,
                                                             False,
                                                             False,
                                                             pygame.sprite.collide_mask))
-        time_taken = time.time() - time_before
 
         if collision_list:
             for laser in collision_list:
@@ -176,14 +161,10 @@ class Robot(pygame.sprite.Sprite):
                     if len(self.point_cloud) > self.sample_count:
                         self.point_cloud.pop(0)
 
-        if self.lidar_state == (30 // self.sample_rate):
+        if self.lidar_state == (30 // self.sample_rate) - 1:
             self.lidar_state = 0
         else:
             self.lidar_state += 1
-        time_taken = time.time() - time_before
-        self.avg_sum += time_taken
-        print("Time taken:", round((self.avg_sum / self.state_count) * 1000, 1), "ms")
-        self.state_count += 1
 
 
 class RobotControl(object):
