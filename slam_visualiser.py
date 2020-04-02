@@ -4,6 +4,50 @@ import time
 import operator
 
 
+class Game(object):
+    def __init__(self):
+        pygame.init()
+        pygame.key.set_repeat(300, 30)
+        self.screen = pygame.display.set_mode((1280, 720), pygame.SRCALPHA)
+        self.screen.fill((255, 255, 255))
+        self.clock = pygame.time.Clock()
+
+        self.background = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        self.background = self.background.convert()
+        self.background.fill((255, 255, 255))
+
+        self.gui = pygame.Surface(self.screen.get_size())
+        self.gui.set_alpha(0)
+
+        pygame.display.flip()
+
+        self.world = World(self.screen)
+        self.robot = RobotControl(self.screen, self.world)
+        self.robot.update()
+
+        self.font = pygame.font.Font(None, 30)
+
+        self.main()
+
+    def main(self):
+        playing_game = True
+        while playing_game:
+            self.clock.tick(30)
+            self.screen.blit(self.background, (0, 0))
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    playing_game = False
+                    break
+            self.robot.change_velocity(pygame.key.get_pressed())
+            self.world.draw()
+            self.robot.update()
+            _fps = self.font.render(str(int(self.clock.get_fps())), True, pygame.Color('green'))
+            self.screen.blit(_fps, (3, 3))
+            pygame.display.update()
+
+        pygame.quit()
+
+
 class Robot(pygame.sprite.Sprite):
     """Sprite  the robot player object.
 
@@ -547,41 +591,5 @@ def point_distance(x_1, x_2, y_1, y_2):
     return np.sqrt(np.square(x_1 - x_2) + np.square(y_1 - y_2))
 
 
-pygame.init()
-pygame.key.set_repeat(300, 30)
-screen = pygame.display.set_mode((1280, 720), pygame.SRCALPHA)
-screen.fill((255, 255, 255))
-clock = pygame.time.Clock()
-
-background = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
-background = background.convert()
-background.fill((255, 255, 255))
-
-gui = pygame.Surface(screen.get_size())
-gui.set_alpha(0)
-
-pygame.display.flip()
-
-world = World(screen)
-robot = RobotControl(screen, world)
-robot.update()
-
-
-font = pygame.font.Font(None, 30)
-
-playing_game = True
-while playing_game:
-    clock.tick(30)
-    screen.blit(background, (0, 0))
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            playing_game = False
-            break
-    robot.change_velocity(pygame.key.get_pressed())
-    world.draw()
-    robot.update()
-    fps = font.render(str(int(clock.get_fps())), True, pygame.Color('green'))
-    screen.blit(fps, (3, 3))
-    pygame.display.update()
-
-pygame.quit()
+if __name__ == '__main__':
+    Game()
