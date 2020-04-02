@@ -459,24 +459,9 @@ class Laser(pygame.sprite.Sprite):
 
     def update(self):
         """Update the laser's position."""
-        # time_before1 = time.time()
         self.new_start = (self.origin.x + self.x_offset,
                           self.origin.y + self.y_offset)
-        # print("time taken new start:", round((time.time() - time_before1) * 10000000, 1), "fs")
-        # time_before2 = time.time()
         self.rect.topleft = self.new_start
-        # self.mask = pygame.mask.from_surface(self.image)
-        # if int(self.angle.as_polar()[1]) == 45 or int(self.angle.as_polar()[1]) == -135:
-        #     # print("Got here", int(self.angle.as_polar()[1]))
-        #     olist = self.mask.outline()
-        #     print(olist)
-        #     if olist:
-        #         pygame.draw.lines(self.screen,(0,250,0),1,olist)
-        # print("time taken rect move:", round((time.time() - time_before2) * 10000000, 1), "fs")
-        # time_before3 = time.time()
-        # self.mask = pygame.mask.from_surface(self.image)
-        # print("time taken masking  :", round((time.time() - time_before3) * 10000, 1), "us")
-        # print()
 
 
 class Wall(pygame.sprite.Sprite):
