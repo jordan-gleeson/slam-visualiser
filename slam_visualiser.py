@@ -57,6 +57,7 @@ class Robot(pygame.sprite.Sprite):
         """Updates the position of the robot's rect, hitbox and mask."""
         self.rect.center = (self.x_pos, self.y_pos)
         self.hitbox.center = (self.x_pos, self.y_pos)
+        self.mask = pygame.mask.from_surface(self.image)
         self.lidar()
         if self.draw_lidar:
             for _point in self.point_cloud:
