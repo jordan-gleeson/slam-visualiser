@@ -25,6 +25,7 @@ class Game(object):
         self.world = World(self.screen)
         self.robot = RobotControl(self.screen, self.world)
         self.robot.update()
+        self.slam = SLAM(self.robot, self.screen)
 
         self.font = pygame.font.Font(None, 30)
 
@@ -43,11 +44,12 @@ class Game(object):
             self.robot.change_velocity(pygame.key.get_pressed())
             self.world.draw()
             self.robot.update()
-            SLAM(self.robot, self.screen)
+            
+            self.slam.ransac(self.robot.robot.point_cloud, 2, 500, 10, 5)
             _fps = self.font.render(str(int(self.clock.get_fps())), True, pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
             pygame.display.update()
-            time.sleep(2)
+            # time.sleep(2)
             # print("Iterations", iterations)
             # TEMP run 30 frames before quitting
             # if iterations > 30:
@@ -86,7 +88,7 @@ class Robot(pygame.sprite.Sprite):
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
         self.mask = pygame.mask.from_surface(self.image)
-        self.draw_lidar = True
+        self.draw_lidar = False
 
         # Lidar setup
         self.point_cloud = []
@@ -601,7 +603,6 @@ class SLAM(object):
         self.robot = robot.robot
         self.screen = screen
         # point cloud = self.robot.point_cloud
-        self.ransac(self.robot.point_cloud, 10, 10, 5, 5)
 
     def ransac(self, data, n, k, t, d):
         """data – A set of observations.
@@ -614,7 +615,7 @@ class SLAM(object):
         _iterations = 0
         _best_fit = None
         _best_err = 100000
-
+        _best_points = 0
         while _iterations < k:
             # maybeInliers := n randomly selected values from data
             _rand_set = []
@@ -661,12 +662,15 @@ class SLAM(object):
             #     end if
             # end if
             if len(_also_inliers) > d:
-                if _tot_err < _best_err:
-                    _best_err = _tot_err
+                # if _tot_err < _best_err:
+                #     _best_err = _tot_err
+                #     _best_fit = _model
+                if len(_also_inliers) > _best_points:
+                    _best_points = len(_also_inliers)
                     _best_fit = _model
             # increment iterations
             _iterations += 1
-        pygame.draw.aaline(self.screen, (0, 255, 0), _model[0], _model[1])
+        pygame.draw.line(self.screen, (0, 255, 0), _model[0], _model[1], 3)
 
 
 def point_distance(x_1, x_2, y_1, y_2):
