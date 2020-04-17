@@ -25,7 +25,6 @@ class Game(object):
         self.world = World(self.screen)
         self.robot = RobotControl(self.screen, self.world)
         self.robot.update()
-        self.slam = SLAM(self.robot, self.screen)
 
         self.font = pygame.font.Font(None, 30)
 
@@ -33,7 +32,6 @@ class Game(object):
 
     def main(self):
         playing_game = True
-        iterations = 0
         while playing_game:
             self.clock.tick(30)
             self.screen.blit(self.background, (0, 0))
@@ -49,13 +47,6 @@ class Game(object):
             _fps = self.font.render(str(int(self.clock.get_fps())), True, pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
             pygame.display.update()
-            # time.sleep(2)
-            # print("Iterations", iterations)
-            # TEMP run 30 frames before quitting
-            # if iterations > 30:
-            #     playing_game = False
-            # else:
-            #     iterations += 1
 
         pygame.quit()
 
@@ -596,81 +587,6 @@ class World(object):
     def draw(self):
         """Draw the ."""
         self.wall_list.draw(self.screen)
-
-
-class SLAM(object):
-    def __init__(self, robot, screen):
-        self.robot = robot.robot
-        self.screen = screen
-        # point cloud = self.robot.point_cloud
-
-    def ransac(self, data, n, k, t, d):
-        """data – A set of observations.
-        model – A model to explain observed data points.
-        n – Minimum number of data points required to estimate model parameters.
-        k – Maximum number of iterations allowed in the algorithm.
-        t – Threshold value to determine data points that are fit well by model.
-        d – Number of close data points required to assert that a model fits well to data.
-        """
-        _iterations = 0
-        _best_fit = None
-        _best_err = 100000
-        _best_points = 0
-        while _iterations < k:
-            # maybeInliers := n randomly selected values from data
-            _rand_set = []
-            # print(len(data))
-            for _ in range(n):
-                while True:
-                    _rand_num = random.randint(0, len(data) - 1)
-                    if not _rand_num in _rand_set:
-                        _rand_set.append(_rand_num)
-                        break
-            # maybeModel := model parameters fitted to maybeInliers
-            # alsoInliers := empty set
-            # for every point in data not in maybeInliers do
-            #     if point fits maybeModel with an error smaller than t
-            #         add point to alsoInliers
-            # end for
-            _also_inliers = []
-            _tot_err = 0
-            _model = [data[_rand_set[0]], data[_rand_set[1]]]
-            # print(_model)
-            for i, point in enumerate(data):
-                if not i in _rand_set:
-                    _num1 = (_model[1][1] - _model[0][1]) * point[0]
-                    _num2 = (_model[1][0] - _model[0][0]) * point[1]
-                    _num3 = _model[1][0] * _model[0][1]
-                    _num4 = _model[1][1] * _model[0][0]
-                    _den = point_distance(_model[1][0],
-                                          _model[0][0],
-                                          _model[1][1],
-                                          _model[0][1])
-                    _point_distance = np.abs((_num1 - _num2 + _num3 - _num4) / _den)
-                    if _point_distance < t:
-                        _also_inliers.append(point)
-                        _tot_err += _point_distance
-
-            # if the number of elements in alsoInliers is > d then
-            #     // This implies that we may have found a good model
-            #     // now test how good it is.
-            #     betterModel := model parameters fitted to all points in maybeInliers and alsoInliers
-            #     thisErr := a measure of how well betterModel fits these points
-            #     if thisErr < bestErr then
-            #         bestFit := betterModel
-            #         bestErr := thisErr
-            #     end if
-            # end if
-            if len(_also_inliers) > d:
-                # if _tot_err < _best_err:
-                #     _best_err = _tot_err
-                #     _best_fit = _model
-                if len(_also_inliers) > _best_points:
-                    _best_points = len(_also_inliers)
-                    _best_fit = _model
-            # increment iterations
-            _iterations += 1
-        pygame.draw.line(self.screen, (0, 255, 0), _model[0], _model[1], 3)
 
 
 def point_distance(x_1, x_2, y_1, y_2):
