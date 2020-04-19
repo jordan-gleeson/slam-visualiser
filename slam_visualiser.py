@@ -25,6 +25,7 @@ class Game(object):
         self.world = World(self.screen)
         self.robot = RobotControl(self.screen, self.world)
         self.robot.update()
+        self.slam = SLAM(self.screen)
 
         self.font = pygame.font.Font(None, 30)
 
@@ -42,7 +43,8 @@ class Game(object):
             self.robot.change_velocity(pygame.key.get_pressed())
             self.world.draw()
             self.robot.update()
-            
+            self.slam.occupancy_grid()
+
             self.slam.ransac(self.robot.robot.point_cloud, 2, 500, 10, 5)
             _fps = self.font.render(str(int(self.clock.get_fps())), True, pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
@@ -587,6 +589,14 @@ class World(object):
     def draw(self):
         """Draw the ."""
         self.wall_list.draw(self.screen)
+
+
+class SLAM(object):
+    def __init__(self, p_screen):
+        self.screen = p_screen
+
+    def occupancy_grid(self):
+        pass
 
 
 def point_distance(x_1, x_2, y_1, y_2):
