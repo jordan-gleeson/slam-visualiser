@@ -25,7 +25,7 @@ class Game(object):
         self.world = World(self.screen)
         self.robot = RobotControl(self.screen, self.world)
         self.robot.update()
-        self.slam = SLAM(self.screen)
+        self.slam = SLAM(self.screen, self.robot)
 
         self.font = pygame.font.Font(None, 30)
 
@@ -592,11 +592,15 @@ class World(object):
 
 
 class SLAM(object):
-    def __init__(self, p_screen):
+    def __init__(self, p_screen, p_robot):
         self.screen = p_screen
+        self.robot = p_robot
+        self.grid_size = 10
+        self.grid = [[0.5 for _ in range(self.screen.get_size()[0] // self.grid_size)]
+                     for __ in range(self.screen.get_size()[1] // self.grid_size)]
 
     def occupancy_grid(self):
-        pass
+        _pc = self.robot.point_cloud
 
 
 def point_distance(x_1, x_2, y_1, y_2):
