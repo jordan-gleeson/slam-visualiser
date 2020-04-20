@@ -42,10 +42,10 @@ class Game(object):
                     break
             self.robot.change_velocity(pygame.key.get_pressed())
             self.world.draw()
+            self.slam.draw_grid()
             self.robot.update()
             self.slam.occupancy_grid()
 
-            # self.slam.ransac(self.robot.robot.point_cloud, 2, 500, 10, 5)
             _fps = self.font.render(str(int(self.clock.get_fps())), True, pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
             pygame.display.update()
@@ -85,9 +85,9 @@ class Robot(pygame.sprite.Sprite):
 
         # Lidar setup
         self.point_cloud = []
-        self.sample_rate = 5  # Hz
+        self.sample_rate = 3  # Hz
         self.lidar_state = 0
-        self.sample_count = 180
+        self.sample_count = 45
 
         self.lasers = pygame.sprite.Group()
         lidar = pygame.math.Vector2()
@@ -618,30 +618,49 @@ class SLAM(object):
                 return "NW"
             else:
                 return None
+        def line(x0, y0, x1, y1):
+        #Bresenham's line algorithm
+            points_in_line = []
+            dx = abs(x1 - x0)
+            dy = abs(y1 - y0)
+            x, y = x0, y0
+            sx = -1 if x0 > x1 else 1
+            sy = -1 if y0 > y1 else 1
+            if dx > dy:
+                err = dx / 2.0
+                while x != x1:
+                    points_in_line.append((x, y))
+                    err -= dy
+                    if err < 0:
+                        y += sy
+                        err += dx
+                    x += sx
+            else:
+                err = dy / 2.0
+                while y != y1:
+                    points_in_line.append((x, y))
+                    err -= dx
+                    if err < 0:
+                        x += sx
+                        err += dy
+                    y += sy
+            points_in_line.append((x, y))
+            return points_in_line
 
         _pc = self.robot.robot.point_cloud
-        # print(self.robot.robot.x_pos, self.robot.robot.y_pos)
         for _point in _pc:
-            # print(_point[0] // self.grid_size, _point[1] // self.grid_size)
-            # print(len(self.grid), len(self.grid[0]))
-            for i in range(len(self.grid)):
-                for j in range(len(self.grid[0])):
-                    _r_pos = [self.robot.robot.x_pos, self.robot.robot.y_pos]
-                    _grid_pos = [j * self.grid_size, i * self.grid_size]
-                    if quadrant(_r_pos, _grid_pos) == quadrant(_r_pos, _point):
-                        _dis = point_to_line(_grid_pos[0], _grid_pos[1], _r_pos[0], _r_pos[1], _point[0], _point[1])
-                        if _dis < 5:
-                            # print(_dis)
-                            self.grid[i][j] = 0
-            self.grid[_point[1] // self.grid_size][_point[0] // self.grid_size] = 1
-        # print("got here")
-        # print(self.grid)
-        self.draw_grid()
+            for _clear in line(self.robot.robot.x_pos // self.grid_size, 
+                               self.robot.robot.y_pos // self.grid_size, 
+                               _point[0] // self.grid_size, 
+                               _point[1] // self.grid_size)[:-1]:
+                if self.grid[int(_clear[1])][int(_clear[0])] > 0:
+                    self.grid[int(_clear[1])][int(_clear[0])] -= 0.01
+            if self.grid[_point[1] // self.grid_size][_point[0] // self.grid_size] < 1:
+                self.grid[_point[1] // self.grid_size][_point[0] // self.grid_size] += 0.01
     
     def draw_grid(self):
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
-                # if self.grid[i][j] == 1:
                 _alpha = 1 - self.grid[i][j]
                 pygame.draw.rect(self.screen, (255 * _alpha, 255 * _alpha, 255 * _alpha), pygame.Rect(j * self.grid_size, i * self.grid_size, self.grid_size, self.grid_size))
 
