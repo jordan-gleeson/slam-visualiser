@@ -45,7 +45,7 @@ class Game(object):
             self.robot.update()
             self.slam.occupancy_grid()
 
-            self.slam.ransac(self.robot.robot.point_cloud, 2, 500, 10, 5)
+            # self.slam.ransac(self.robot.robot.point_cloud, 2, 500, 10, 5)
             _fps = self.font.render(str(int(self.clock.get_fps())), True, pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
             pygame.display.update()
@@ -600,7 +600,50 @@ class SLAM(object):
                      for __ in range(self.screen.get_size()[1] // self.grid_size)]
 
     def occupancy_grid(self):
-        _pc = self.robot.point_cloud
+        def point_to_line(x0, y0, x1, y1, x2, y2):
+            _num1 = (y2 - y1) * x0
+            _num2 = (x2 - x1) * y0
+            _num3 = x2 * y1
+            _num4 = y2 * x1
+            _den = np.sqrt(np.square(y2 - y1) + np.square(x2 - x1))
+            return np.abs(_num1 - _num2 + _num3 - _num4) / _den
+        def quadrant(pos1, pos2):
+            if pos2[0] >= pos1[0] and pos2[1] > pos1[1]:
+                return "SE"
+            elif pos2[0] >= pos1[0] and pos2[1] < pos1[1]:
+                return "NE"
+            elif pos2[0] < pos1[0] and pos2[1] >= pos1[1]:
+                return "SW"
+            elif pos2[0] < pos1[0] and pos2[1] <= pos1[1]:
+                return "NW"
+            else:
+                return None
+
+        _pc = self.robot.robot.point_cloud
+        # print(self.robot.robot.x_pos, self.robot.robot.y_pos)
+        for _point in _pc:
+            # print(_point[0] // self.grid_size, _point[1] // self.grid_size)
+            # print(len(self.grid), len(self.grid[0]))
+            for i in range(len(self.grid)):
+                for j in range(len(self.grid[0])):
+                    _r_pos = [self.robot.robot.x_pos, self.robot.robot.y_pos]
+                    _grid_pos = [j * self.grid_size, i * self.grid_size]
+                    if quadrant(_r_pos, _grid_pos) == quadrant(_r_pos, _point):
+                        _dis = point_to_line(_grid_pos[0], _grid_pos[1], _r_pos[0], _r_pos[1], _point[0], _point[1])
+                        if _dis < 5:
+                            # print(_dis)
+                            self.grid[i][j] = 0
+            self.grid[_point[1] // self.grid_size][_point[0] // self.grid_size] = 1
+        # print("got here")
+        # print(self.grid)
+        self.draw_grid()
+    
+    def draw_grid(self):
+        for i in range(len(self.grid)):
+            for j in range(len(self.grid[0])):
+                # if self.grid[i][j] == 1:
+                _alpha = 1 - self.grid[i][j]
+                pygame.draw.rect(self.screen, (255 * _alpha, 255 * _alpha, 255 * _alpha), pygame.Rect(j * self.grid_size, i * self.grid_size, self.grid_size, self.grid_size))
 
 
 def point_distance(x_1, x_2, y_1, y_2):
