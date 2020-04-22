@@ -78,13 +78,14 @@ class Robot(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.x_pos = float(self.screen.get_size()[0] / 2)
         self.y_pos = float(self.screen.get_size()[1] / 2)
+        self.angle = 0
         self.rect.center = (self.x_pos, self.y_pos)
         self.hitbox = pygame.Rect(self.x_pos - (self.image_size[0] / 2),
                                   self.y_pos - (self.image_size[1] / 2),
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
         self.mask = pygame.mask.from_surface(self.image)
-        self.draw_lidar = False
+        self.draw_lidar = True
 
         # Lidar setup
         self.point_cloud = []
@@ -245,7 +246,6 @@ class RobotControl(object):
         self.max_velocity = 3
         self.acceleration = 0.5
         self.cur_keys = []
-        self.direction = 0
         self.angular_velocity = 6
         self.dummy_screen = pygame.Surface(self.screen.get_size())
         self.collision_list = []
@@ -257,13 +257,13 @@ class RobotControl(object):
         self.robot.y_pos = self.screen.get_size()[1] / 2
         self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
         self.velocity = [0, 0, 0]
-        self.direction = 0
+        self.robot.angle = 0
         self.update()
 
     def update(self):
         """Update all aspects of the robot, including velocities, position and lidar sensor."""
         self.move_velocity()
-        self.robot.rotate(self.direction)
+        self.robot.rotate(self.robot.angle)
         self.robot.update()
         self.screen.blit(self.robot.image, self.robot.rect)
 
@@ -331,15 +331,15 @@ class RobotControl(object):
         if "R" in pressed_keys:
             self.reset()
         if "RIGHT" in pressed_keys:
-            self.direction -= self.angular_velocity
+            self.robot.angle -= self.angular_velocity
         if "LEFT" in pressed_keys:
-            self.direction += self.angular_velocity
+            self.robot.angle += self.angular_velocity
 
-        # Bind the direction to remain < 180 and > -180.
-        if self.direction > 180:
-            self.direction = -180 + (self.direction - 180)
-        elif self.direction < -180:
-            self.direction = 180 + (self.direction + 180)
+        # Bind the robot.angle to remain < 180 and > -180.
+        if self.robot.angle > 180:
+            self.robot.angle = -180 + (self.robot.angle - 180)
+        elif self.robot.angle < -180:
+            self.robot.angle = 180 + (self.robot.angle + 180)
 
         # Calculate the current magnitude of the velocity vector.
         speed = self.acceleration * 2
@@ -348,8 +348,8 @@ class RobotControl(object):
 
         # Calculate the axis velocity components according to the current direction and desired
         # speed.
-        x_vec = np.cos(-1 * np.deg2rad(self.direction + 90)) * speed
-        y_vec = np.sin(-1 * np.deg2rad(self.direction + 90)) * speed
+        x_vec = np.cos(-1 * np.deg2rad(self.robot.angle + 90)) * speed
+        y_vec = np.sin(-1 * np.deg2rad(self.robot.angle + 90)) * speed
         if "UP" in pressed_keys:
             self.velocity[0] += self.acceleration * x_vec
             self.velocity[1] += self.acceleration * y_vec
