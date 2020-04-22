@@ -13,7 +13,8 @@ class Game(object):
         self.screen.fill((255, 255, 255))
         self.clock = pygame.time.Clock()
 
-        self.background = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        self.background = pygame.Surface(self.screen.get_size(), 
+                                         pygame.SRCALPHA)
         self.background = self.background.convert()
         self.background.fill((255, 255, 255))
 
@@ -42,8 +43,10 @@ class Game(object):
             self.robot.change_velocity(pygame.key.get_pressed())
             self.world.draw()
             self.robot.update()
-            
-            _fps = self.font.render(str(int(self.clock.get_fps())), True, pygame.Color('green'))
+
+            _fps = self.font.render(str(int(self.clock.get_fps())), 
+                                    True, 
+                                    pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
             pygame.display.update()
 
@@ -90,7 +93,8 @@ class Robot(pygame.sprite.Sprite):
         self.lasers = pygame.sprite.Group()
         lidar = pygame.math.Vector2()
         lidar.xy = (self.x_pos, self.y_pos)
-        self.initial_laser_length = int(np.sqrt(np.square(self.screen.get_width()) + np.square(self.screen.get_height())))
+        self.initial_laser_length = int(np.sqrt(
+            np.square(self.screen.get_width()) + np.square(self.screen.get_height())))
         for i in range(self.sample_count):
             degree_multiplier = 360 / self.sample_count
             cur_angle = int(i * degree_multiplier)
@@ -134,7 +138,11 @@ class Robot(pygame.sprite.Sprite):
         _iterations_per_frame = int(
             self.sample_count / (30 / self.sample_rate))
         _slice_from = self.lidar_state * _iterations_per_frame
-        _slice_to = _slice_from + _iterations_per_frame
+        if self.lidar_state == (30 // self.sample_rate) - 2:
+            # Ensure final slice gets the remainder
+            _slice_to = self.sample_count
+        else:
+            _slice_to = _slice_from + _iterations_per_frame
         # Update the position of each of the laser sprites in self.lasers
         lidar = pygame.math.Vector2()
         lidar.xy = (self.x_pos, self.y_pos)
@@ -170,10 +178,10 @@ class Robot(pygame.sprite.Sprite):
                     if _quad[2](_cur_pos[1], _y_buf):
                         _quad_walls.add(_wall)
             collision_list.update(pygame.sprite.groupcollide(_quad_lasers,
-                                                            _quad_walls,
-                                                            False,
-                                                            False,
-                                                            pygame.sprite.collide_mask))
+                                                             _quad_walls,
+                                                             False,
+                                                             False,
+                                                             pygame.sprite.collide_mask))
 
         if collision_list:
             for laser in collision_list:
@@ -200,12 +208,12 @@ class Robot(pygame.sprite.Sprite):
                     current_pos += direction
                     if closest_wall.rect.collidepoint(current_pos):
                         closest_point = (int(current_pos.x),
-                                         int(current_pos.y)) 
+                                         int(current_pos.y))
                         break
 
                 # Write resulting point to the point cloud
                 if not closest_point == (self.initial_laser_length, self.initial_laser_length):
-                    self.point_cloud.append(closest_point)                
+                    self.point_cloud.append(closest_point)
                     if len(self.point_cloud) > self.sample_count:
                         self.point_cloud.pop(0)
 
