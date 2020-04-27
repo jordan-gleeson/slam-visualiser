@@ -83,9 +83,9 @@ class Robot(pygame.sprite.Sprite):
 
         # Lidar setup
         self.point_cloud = []
-        self.sample_rate = 5  # Hz
+        self.sample_rate = 1  # Hz
         self.lidar_state = 0
-        self.sample_count = 16
+        self.sample_count = 180
 
         self.lasers = pygame.sprite.Group()
         lidar = pygame.math.Vector2()
@@ -111,7 +111,8 @@ class Robot(pygame.sprite.Sprite):
                 # _polar = _point.as_polar()
                 # print(_polar)
                 # print(self.x_pos)
-                _coords = [int(_point[0] * np.cos(_point[1])), int(_point[0] * np.sin(_point[1]))]
+                _coords = [int(_point[0] * np.cos(_point[1]) + self.x_pos), int(_point[0] * np.sin(_point[1]) + self.y_pos)]
+                # print("converted:", _coords[0], _coords[1])
                 pygame.draw.aaline(self.screen,
                                    (255, 0, 0, 255),
                                    (self.x_pos, self.y_pos),
@@ -134,6 +135,9 @@ class Robot(pygame.sprite.Sprite):
         colliding with, then finds the closest wall. It then finds the closest point on that wall
         to the robot.
         """
+        def safe_divide(_x, _y):
+            return _x / _y if _y else 0
+
         # TODO: Fix flickering on some diagonal lasers
         _iterations_per_frame = int(
             self.sample_count / (30 / self.sample_rate))
@@ -203,13 +207,18 @@ class Robot(pygame.sprite.Sprite):
                 for _ in range(self.initial_laser_length):
                     current_pos += direction
                     if closest_wall.rect.collidepoint(current_pos):
-                        closest_point = [np.sqrt(np.square(self.x_pos - current_pos.x) + np.square(self.y_pos - current_pos.y)), np.arctan((self.y_pos - current_pos.y) / (self.x_pos - current_pos.x))] 
+                        # print("check", self.x_pos, self.y_pos, current_pos.x, current_pos.y)
+                        # print("Original:", current_pos.x, current_pos.y)
+                        _r = np.sqrt(np.square(self.x_pos - current_pos.x) + np.square(self.y_pos - current_pos.y))
+                        _theta = np.arctan2(-(self.y_pos - current_pos.y), -(self.x_pos - current_pos.x))
+                        print("Polar:", _r, _theta)
+                        closest_point = [_r, _theta]
                         break
 
                 # Write resulting point to the point cloud
                 if not closest_point == (self.initial_laser_length, self.initial_laser_length):
                     # print(closest_point.as_polar())
-                    print(closest_point)
+                    # print(closest_point)
                     self.point_cloud.append(closest_point)                
                     if len(self.point_cloud) > self.sample_count:
                         self.point_cloud.pop(0)
