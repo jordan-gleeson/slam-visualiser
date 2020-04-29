@@ -115,13 +115,14 @@ class Robot(pygame.sprite.Sprite):
         self.lidar()
         if self.draw_lidar:
             for _point in self.point_cloud:
+                _coords = [int(_point[0] * np.cos(_point[1]) + self.x_pos), int(_point[0] * np.sin(_point[1]) + self.y_pos)]
                 pygame.draw.aaline(self.screen,
                                    (255, 0, 0, 255),
                                    (self.x_pos, self.y_pos),
-                                   _point)
+                                   _coords)
                 pygame.draw.circle(self.screen,
                                    (0, 0, 255, 255),
-                                   _point,
+                                   _coords,
                                    3)
 
     def rotate(self, direction):
@@ -205,18 +206,19 @@ class Robot(pygame.sprite.Sprite):
                 current_pos.update(self.x_pos, self.y_pos)
                 heading = laser.angle
                 direction = heading.normalize()
-                closest_point = (self.initial_laser_length,
-                                 self.initial_laser_length)
+                closest_point = [self.initial_laser_length,
+                                               self.initial_laser_length]
                 for _ in range(self.initial_laser_length):
                     current_pos += direction
                     if closest_wall.rect.collidepoint(current_pos):
-                        closest_point = (int(current_pos.x),
-                                         int(current_pos.y))
+                        _r = np.sqrt(np.square(self.x_pos - current_pos.x) + np.square(self.y_pos - current_pos.y))
+                        _theta = np.arctan2(-(self.y_pos - current_pos.y), -(self.x_pos - current_pos.x))
+                        closest_point = [_r, _theta]
                         break
 
                 # Write resulting point to the point cloud
-                if not closest_point == (self.initial_laser_length, self.initial_laser_length):
-                    self.point_cloud.append(closest_point)
+                if not closest_point == [self.initial_laser_length, self.initial_laser_length]:
+                    self.point_cloud.append(closest_point)                
                     if len(self.point_cloud) > self.sample_count:
                         self.point_cloud.pop(0)
 
