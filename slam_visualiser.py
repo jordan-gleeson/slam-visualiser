@@ -85,11 +85,11 @@ class Robot(pygame.sprite.Sprite):
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
         self.mask = pygame.mask.from_surface(self.image)
-        self.draw_lidar = True
+        self.draw_lidar = False
 
         # Lidar setup
         self.point_cloud = []
-        self.sample_rate = 3  # Hz
+        self.sample_rate = 10  # Hz
         self.lidar_state = 0
         self.sample_count = 45
 
@@ -658,16 +658,16 @@ class SLAM(object):
             return points_in_line
 
         _pc = self.robot.robot.point_cloud
-        print(_pc)
         for _point in _pc:
+            _coords = [int(_point[0] * np.cos(_point[1]) + self.robot.robot.x_pos), int(_point[0] * np.sin(_point[1]) + self.robot.robot.y_pos)]
             for _clear in line(self.robot.robot.x_pos // self.grid_size, 
                                self.robot.robot.y_pos // self.grid_size, 
-                               _point[0] // self.grid_size, 
-                               _point[1] // self.grid_size)[:-1]:
+                               _coords[0] // self.grid_size, 
+                               _coords[1] // self.grid_size)[:-1]:
                 if self.grid[int(_clear[1])][int(_clear[0])] > 0:
                     self.grid[int(_clear[1])][int(_clear[0])] -= 0.01
-            if self.grid[_point[1] // self.grid_size][_point[0] // self.grid_size] < 1:
-                self.grid[_point[1] // self.grid_size][_point[0] // self.grid_size] += 0.01
+            if self.grid[int(_coords[1] // self.grid_size)][int(_coords[0] // self.grid_size)] < 1:
+                self.grid[int(_coords[1] // self.grid_size)][int(_coords[0] // self.grid_size)] += 0.01
     
     def draw_grid(self):
         for i in range(len(self.grid)):
