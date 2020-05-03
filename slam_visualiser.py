@@ -45,6 +45,7 @@ class Game(object):
             self.world.draw()
             self.slam.draw_grid()
             self.robot.update()
+            self.slam.odometry(self.robot.odo_velocity)
             self.slam.occupancy_grid()
 
             _fps = self.font.render(str(int(self.clock.get_fps())), 
@@ -89,7 +90,7 @@ class Robot(pygame.sprite.Sprite):
 
         # Lidar setup
         self.point_cloud = []
-        self.sample_rate = 10  # Hz
+        self.sample_rate = 3  # Hz
         self.lidar_state = 0
         self.sample_count = 45
 
@@ -207,7 +208,7 @@ class Robot(pygame.sprite.Sprite):
                 heading = laser.angle
                 direction = heading.normalize()
                 closest_point = [self.initial_laser_length,
-                                               self.initial_laser_length]
+                                 self.initial_laser_length]
                 for _ in range(self.initial_laser_length):
                     current_pos += direction
                     if closest_wall.rect.collidepoint(current_pos):
@@ -245,7 +246,8 @@ class RobotControl(object):
         self.world = p_world
         # (+x velocity, +y velocity, velocity magnitude) pixels/tick
         self.velocity = [0, 0, 0]
-        self.max_velocity = 3
+        self.odo_velocity = self.velocity
+        self.max_velocity = 2
         self.acceleration = 0.5
         self.cur_keys = []
         self.angular_velocity = 6
@@ -302,6 +304,7 @@ class RobotControl(object):
         self.robot.x_pos += self.velocity[0]
         self.robot.y_pos += self.velocity[1]
         self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
+        self.odo_velocity = self.velocity
 
         # Decelerate the velocity vector if no forward input is received.
         deceleration = self.acceleration / 2
@@ -608,6 +611,18 @@ class SLAM(object):
         self.grid_size = 10
         self.grid = [[0.5 for _ in range(self.screen.get_size()[0] // self.grid_size)]
                      for __ in range(self.screen.get_size()[1] // self.grid_size)]
+        self.odo_x = self.robot.robot.x_pos
+        self.odo_y = self.robot.robot.y_pos
+        self.odo_error = 0.5
+
+    def odometry(self, _acc_vector):
+        try:
+            self.odo_x += random.uniform(_acc_vector[0] - _acc_vector[0] * self.odo_error,
+                                         _acc_vector[0] + _acc_vector[0] * self.odo_error)
+            self.odo_y += random.uniform(_acc_vector[1] - _acc_vector[1] * self.odo_error,
+                                         _acc_vector[1] + _acc_vector[1] * self.odo_error)
+        except ValueError as e:
+            pass
 
     def occupancy_grid(self):
         def point_to_line(x0, y0, x1, y1, x2, y2):
@@ -617,17 +632,7 @@ class SLAM(object):
             _num4 = y2 * x1
             _den = np.sqrt(np.square(y2 - y1) + np.square(x2 - x1))
             return np.abs(_num1 - _num2 + _num3 - _num4) / _den
-        def quadrant(pos1, pos2):
-            if pos2[0] >= pos1[0] and pos2[1] > pos1[1]:
-                return "SE"
-            elif pos2[0] >= pos1[0] and pos2[1] < pos1[1]:
-                return "NE"
-            elif pos2[0] < pos1[0] and pos2[1] >= pos1[1]:
-                return "SW"
-            elif pos2[0] < pos1[0] and pos2[1] <= pos1[1]:
-                return "NW"
-            else:
-                return None
+
         def line(x0, y0, x1, y1):
         #Bresenham's line algorithm
             points_in_line = []
@@ -657,9 +662,10 @@ class SLAM(object):
             points_in_line.append((x, y))
             return points_in_line
 
+        # TODO: Fix old measurements going out of range when robot moves.
         _pc = self.robot.robot.point_cloud
         for _point in _pc:
-            _coords = [int(_point[0] * np.cos(_point[1]) + self.robot.robot.x_pos), int(_point[0] * np.sin(_point[1]) + self.robot.robot.y_pos)]
+            _coords = [int(_point[0] * np.cos(_point[1]) + self.odo_x), int(_point[0] * np.sin(_point[1]) + self.odo_y)]
             for _clear in line(self.robot.robot.x_pos // self.grid_size, 
                                self.robot.robot.y_pos // self.grid_size, 
                                _coords[0] // self.grid_size, 
