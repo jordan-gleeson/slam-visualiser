@@ -13,7 +13,7 @@ class Game(object):
         self.screen.fill((255, 255, 255))
         self.clock = pygame.time.Clock()
 
-        self.background = pygame.Surface(self.screen.get_size(), 
+        self.background = pygame.Surface(self.screen.get_size(),
                                          pygame.SRCALPHA)
         self.background = self.background.convert()
         self.background.fill((255, 255, 255))
@@ -46,10 +46,12 @@ class Game(object):
             self.slam.draw_grid()
             self.robot.update()
             self.slam.odometry(self.robot.odo_velocity)
-            self.slam.occupancy_grid()
+            if self.robot.robot.new_sample:
+                self.slam.occupancy_grid()
+                self.robot.robot.new_sample = False
 
-            _fps = self.font.render(str(int(self.clock.get_fps())), 
-                                    True, 
+            _fps = self.font.render(str(int(self.clock.get_fps())),
+                                    True,
                                     pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
             pygame.display.update()
@@ -86,13 +88,14 @@ class Robot(pygame.sprite.Sprite):
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
         self.mask = pygame.mask.from_surface(self.image)
-        self.draw_lidar = False
+        self.draw_lidar = True
 
         # Lidar setup
         self.point_cloud = []
         self.sample_rate = 3  # Hz
         self.lidar_state = 0
         self.sample_count = 45
+        self.new_sample = True
 
         self.lasers = pygame.sprite.Group()
         lidar = pygame.math.Vector2()
@@ -116,7 +119,8 @@ class Robot(pygame.sprite.Sprite):
         self.lidar()
         if self.draw_lidar:
             for _point in self.point_cloud:
-                _coords = [int(_point[0] * np.cos(_point[1]) + self.x_pos), int(_point[0] * np.sin(_point[1]) + self.y_pos)]
+                _coords = [int(_point[0] * np.cos(_point[1]) + self.x_pos),
+                           int(_point[0] * np.sin(_point[1]) + self.y_pos)]
                 pygame.draw.aaline(self.screen,
                                    (255, 0, 0, 255),
                                    (self.x_pos, self.y_pos),
@@ -212,18 +216,21 @@ class Robot(pygame.sprite.Sprite):
                 for _ in range(self.initial_laser_length):
                     current_pos += direction
                     if closest_wall.rect.collidepoint(current_pos):
-                        _r = np.sqrt(np.square(self.x_pos - current_pos.x) + np.square(self.y_pos - current_pos.y))
-                        _theta = np.arctan2(-(self.y_pos - current_pos.y), -(self.x_pos - current_pos.x))
+                        _r = np.sqrt(np.square(self.x_pos - current_pos.x) 
+                                     + np.square(self.y_pos - current_pos.y))
+                        _theta = np.arctan2(-(self.y_pos - current_pos.y), -
+                                            (self.x_pos - current_pos.x))
                         closest_point = [_r, _theta]
                         break
 
                 # Write resulting point to the point cloud
                 if not closest_point == [self.initial_laser_length, self.initial_laser_length]:
-                    self.point_cloud.append(closest_point)                
+                    self.point_cloud.append(closest_point)
                     if len(self.point_cloud) > self.sample_count:
                         self.point_cloud.pop(0)
 
         if self.lidar_state == (30 // self.sample_rate) - 1:
+            self.new_sample = True
             self.lidar_state = 0
         else:
             self.lidar_state += 1
@@ -247,7 +254,7 @@ class RobotControl(object):
         # (+x velocity, +y velocity, velocity magnitude) pixels/tick
         self.velocity = [0, 0, 0]
         self.odo_velocity = self.velocity
-        self.max_velocity = 2
+        self.max_velocity = 4
         self.acceleration = 0.5
         self.cur_keys = []
         self.angular_velocity = 6
@@ -634,7 +641,7 @@ class SLAM(object):
             return np.abs(_num1 - _num2 + _num3 - _num4) / _den
 
         def line(x0, y0, x1, y1):
-        #Bresenham's line algorithm
+            # Bresenham's line algorithm
             points_in_line = []
             dx = abs(x1 - x0)
             dy = abs(y1 - y0)
@@ -662,24 +669,35 @@ class SLAM(object):
             points_in_line.append((x, y))
             return points_in_line
 
-        # TODO: Fix old measurements going out of range when robot moves.
+        # TODO: Fix occupancy grid map not updating in the bottom right
+        _rate_of_change = 0.05
         _pc = self.robot.robot.point_cloud
         for _point in _pc:
-            _coords = [int(_point[0] * np.cos(_point[1]) + self.odo_x), int(_point[0] * np.sin(_point[1]) + self.odo_y)]
-            for _clear in line(self.robot.robot.x_pos // self.grid_size, 
-                               self.robot.robot.y_pos // self.grid_size, 
-                               _coords[0] // self.grid_size, 
-                               _coords[1] // self.grid_size)[:-1]:
-                if self.grid[int(_clear[1])][int(_clear[0])] > 0:
-                    self.grid[int(_clear[1])][int(_clear[0])] -= 0.01
-            if self.grid[int(_coords[1] // self.grid_size)][int(_coords[0] // self.grid_size)] < 1:
-                self.grid[int(_coords[1] // self.grid_size)][int(_coords[0] // self.grid_size)] += 0.01
-    
+            try:
+                _coords = [int(_point[0] * np.cos(_point[1]) + self.odo_x),
+                           int(_point[0] * np.sin(_point[1]) + self.odo_y)]
+                for _clear in line(self.robot.robot.x_pos // self.grid_size,
+                                   self.robot.robot.y_pos // self.grid_size,
+                                   _coords[0] // self.grid_size,
+                                   _coords[1] // self.grid_size)[:-1]:
+                    self.grid[int(_clear[1])][int(
+                        _clear[0])] -= _rate_of_change
+                    if self.grid[int(_clear[1])][int(_clear[0])] < 0:
+                        self.grid[int(_clear[1])][int(_clear[0])] = 0
+                _grid_y = int(_coords[1] // self.grid_size)
+                _grid_x = int(_coords[0] // self.grid_size)
+                self.grid[_grid_y][_grid_x] += _rate_of_change
+                if self.grid[_grid_y][_grid_x] > 1:
+                    self.grid[_grid_y][_grid_x] = 1
+            except IndexError:
+                pass
+
     def draw_grid(self):
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
                 _alpha = 1 - self.grid[i][j]
-                pygame.draw.rect(self.screen, (255 * _alpha, 255 * _alpha, 255 * _alpha), pygame.Rect(j * self.grid_size, i * self.grid_size, self.grid_size, self.grid_size))
+                pygame.draw.rect(self.screen, (255 * _alpha, 255 * _alpha, 255 * _alpha), pygame.Rect(
+                    j * self.grid_size, i * self.grid_size, self.grid_size, self.grid_size))
 
 
 def point_distance(x_1, x_2, y_1, y_2):
