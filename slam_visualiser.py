@@ -96,6 +96,7 @@ class Robot(pygame.sprite.Sprite):
         self.sample_count = 180
         self.point_cloud = [[0, 0] for _ in range(self.sample_count)]
         self.angle_ref = []
+        self.new_sample = True
 
         self.lasers = pygame.sprite.Group()
         lidar = pygame.math.Vector2()
