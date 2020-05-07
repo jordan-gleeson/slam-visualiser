@@ -91,11 +91,11 @@ class Robot(pygame.sprite.Sprite):
         self.draw_lidar = True
 
         # Lidar setup
-        self.point_cloud = []
-        self.sample_rate = 3  # Hz
+        self.sample_rate = 5  # Hz
         self.lidar_state = 0
-        self.sample_count = 45
-        self.new_sample = True
+        self.sample_count = 180
+        self.point_cloud = [[0, 0] for _ in range(self.sample_count)]
+        self.angle_ref = []
 
         self.lasers = pygame.sprite.Group()
         lidar = pygame.math.Vector2()
@@ -105,6 +105,7 @@ class Robot(pygame.sprite.Sprite):
         for i in range(self.sample_count):
             degree_multiplier = 360 / self.sample_count
             cur_angle = int(i * degree_multiplier)
+            self.angle_ref.append(cur_angle)
             laser = pygame.math.Vector2()
             laser.from_polar((self.initial_laser_length, cur_angle))
             laser_sprite = Laser(self.screen, lidar, laser)
@@ -225,9 +226,11 @@ class Robot(pygame.sprite.Sprite):
 
                 # Write resulting point to the point cloud
                 if not closest_point == [self.initial_laser_length, self.initial_laser_length]:
-                    self.point_cloud.append(closest_point)
-                    if len(self.point_cloud) > self.sample_count:
-                        self.point_cloud.pop(0)
+                    _cur_angle = (round(heading.as_polar()[1]) + 450) % 360
+                    try:
+                        self.point_cloud[self.angle_ref.index(_cur_angle)] = closest_point
+                    except ValueError:
+                        pass
 
         if self.lidar_state == (30 // self.sample_rate) - 1:
             self.new_sample = True
