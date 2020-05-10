@@ -43,7 +43,7 @@ class Game(object):
                     break
             self.robot.change_velocity(pygame.key.get_pressed())
             self.world.draw()
-            self.slam.draw_grid()
+            self.slam.update()
             self.robot.update()
             self.slam.odometry(self.robot.odo_velocity)
             if self.robot.robot.new_sample:
@@ -93,7 +93,7 @@ class Robot(pygame.sprite.Sprite):
         # Lidar setup
         self.sample_rate = 5  # Hz
         self.lidar_state = 0
-        self.sample_count = 180
+        self.sample_count = 32
         self.point_cloud = [[0, 0] for _ in range(self.sample_count)]
         self.angle_ref = []
         self.new_sample = True
@@ -218,7 +218,7 @@ class Robot(pygame.sprite.Sprite):
                 for _ in range(self.initial_laser_length):
                     current_pos += direction
                     if closest_wall.rect.collidepoint(current_pos):
-                        _r = np.sqrt(np.square(self.x_pos - current_pos.x) 
+                        _r = np.sqrt(np.square(self.x_pos - current_pos.x)
                                      + np.square(self.y_pos - current_pos.y))
                         _theta = np.arctan2(-(self.y_pos - current_pos.y), -
                                             (self.x_pos - current_pos.x))
@@ -229,7 +229,8 @@ class Robot(pygame.sprite.Sprite):
                 if not closest_point == [self.initial_laser_length, self.initial_laser_length]:
                     _cur_angle = (round(heading.as_polar()[1]) + 450) % 360
                     try:
-                        self.point_cloud[self.angle_ref.index(_cur_angle)] = closest_point
+                        self.point_cloud[self.angle_ref.index(
+                            _cur_angle)] = closest_point
                     except ValueError:
                         pass
 
@@ -571,7 +572,7 @@ class Wall(pygame.sprite.Sprite):
 class World(object):
     """Writes and draws the world map.
 
-    Handles the attributes for the world map and draws
+    Handles the attributes for the world map and draws.
 
     Attributes:
         p_screen: The main pygame screen surface.
@@ -611,85 +612,105 @@ class World(object):
                     self.wall_list.add(wall_rect)
 
     def draw(self):
-        """Draw the ."""
+        """Draw the world map."""
         self.wall_list.draw(self.screen)
 
 
 class SLAM(object):
+    """Contains all aspects of the SLAM algorithm (WIP).
+
+    Handles calculations and drawing of the occupancy grid map. Creates fake odometry positioning.
+
+    Attributes:
+        p_screen: The main pygame screen surface.
+        p_robot: The robot object.
+    """
+
     def __init__(self, p_screen, p_robot):
         self.screen = p_screen
         self.robot = p_robot
-        self.grid_size = 10
+
+        # Occupancy Grid Setup
+        self.grid_size = 11
         self.grid = [[0.5 for _ in range(self.screen.get_size()[0] // self.grid_size)]
                      for __ in range(self.screen.get_size()[1] // self.grid_size)]
+        self.show_occupancy_grid = True
+
+        # Odometry Setup
         self.odo_x = self.robot.robot.x_pos
         self.odo_y = self.robot.robot.y_pos
-        self.odo_error = 0.5
+        self.odo_error = 0.01
 
-    def odometry(self, _acc_vector):
+    def update(self):
+        """Update SLAM visuals."""
+        if self.show_occupancy_grid:
+            self.draw_grid()
+
+    def odometry(self, _vel_vector):
+        """Adds a random error to the positional data within a percentage tolerance."""
         try:
-            self.odo_x += random.uniform(_acc_vector[0] - _acc_vector[0] * self.odo_error,
-                                         _acc_vector[0] + _acc_vector[0] * self.odo_error)
-            self.odo_y += random.uniform(_acc_vector[1] - _acc_vector[1] * self.odo_error,
-                                         _acc_vector[1] + _acc_vector[1] * self.odo_error)
+            self.odo_x += random.uniform(_vel_vector[0] - _vel_vector[0] * self.odo_error,
+                                         _vel_vector[0] + _vel_vector[0] * self.odo_error)
+            self.odo_y += random.uniform(_vel_vector[1] - _vel_vector[1] * self.odo_error,
+                                         _vel_vector[1] + _vel_vector[1] * self.odo_error)
         except ValueError as e:
             pass
 
     def occupancy_grid(self):
-        def point_to_line(x0, y0, x1, y1, x2, y2):
-            _num1 = (y2 - y1) * x0
-            _num2 = (x2 - x1) * y0
-            _num3 = x2 * y1
-            _num4 = y2 * x1
-            _den = np.sqrt(np.square(y2 - y1) + np.square(x2 - x1))
-            return np.abs(_num1 - _num2 + _num3 - _num4) / _den
+        """Occupance grid algorithm.
 
-        def line(x0, y0, x1, y1):
-            # Bresenham's line algorithm
-            points_in_line = []
-            dx = abs(x1 - x0)
-            dy = abs(y1 - y0)
-            x, y = x0, y0
-            sx = -1 if x0 > x1 else 1
-            sy = -1 if y0 > y1 else 1
-            if dx > dy:
-                err = dx / 2.0
-                while x != x1:
-                    points_in_line.append((x, y))
-                    err -= dy
-                    if err < 0:
-                        y += sy
-                        err += dx
-                    x += sx
+        Loops through all points in the point cloud and lowers the probability of a space in the
+        grid being occupied if it is found on a line between the robot and a point, and increases
+        the probability if it is found at the end-point of the laser.
+        """
+        def line(_x, _y, _a, _b):
+            """Bresenham's line algorithm that returns a list of points."""
+            _points_in_line = []
+            _dx = abs(_a - _x)
+            _dy = abs(_b - _y)
+            _nx, _ny = _x, _y
+            _sx = -1 if _x > _a else 1
+            _sy = -1 if _y > _b else 1
+            if _dx > _dy:
+                _err = _dx / 2.0
+                while _nx != _a:
+                    _points_in_line.append((_nx, _ny))
+                    _err -= _dy
+                    if _err < 0:
+                        _ny += _sy
+                        _err += _dx
+                    _nx += _sx
             else:
-                err = dy / 2.0
-                while y != y1:
-                    points_in_line.append((x, y))
-                    err -= dx
-                    if err < 0:
-                        x += sx
-                        err += dy
-                    y += sy
-            points_in_line.append((x, y))
-            return points_in_line
+                _err = _dy / 2.0
+                while _ny != _b:
+                    _points_in_line.append((_nx, _ny))
+                    _err -= _dx
+                    if _err < 0:
+                        _nx += _sx
+                        _err += _dy
+                    _ny += _sy
+            _points_in_line.append((_nx, _ny))
+            return _points_in_line
 
-        # TODO: Fix occupancy grid map not updating in the bottom right
-        _rate_of_change = 0.05
+        _rate_of_change = 0.05  # The rate at which the probability of a point is changed
         _pc = self.robot.robot.point_cloud
         for _point in _pc:
-            try:
-                _coords = [int(_point[0] * np.cos(_point[1]) + self.odo_x),
+            try:  # Catch instances where the end-point may be out of the game screen
+                _coords = [int(_point[0] * np.cos(_point[1]) + self.odo_x),  # Convert to cartesian
                            int(_point[0] * np.sin(_point[1]) + self.odo_y)]
+                # Loop through the points in between the robot and the end-point of a laser
                 for _clear in line(self.robot.robot.x_pos // self.grid_size,
                                    self.robot.robot.y_pos // self.grid_size,
                                    _coords[0] // self.grid_size,
                                    _coords[1] // self.grid_size)[:-1]:
+                    # Decrease occupancy probability
                     self.grid[int(_clear[1])][int(
                         _clear[0])] -= _rate_of_change
                     if self.grid[int(_clear[1])][int(_clear[0])] < 0:
                         self.grid[int(_clear[1])][int(_clear[0])] = 0
                 _grid_y = int(_coords[1] // self.grid_size)
                 _grid_x = int(_coords[0] // self.grid_size)
+                # Increase occupancy probability of the end-point
                 self.grid[_grid_y][_grid_x] += _rate_of_change
                 if self.grid[_grid_y][_grid_x] > 1:
                     self.grid[_grid_y][_grid_x] = 1
@@ -697,11 +718,17 @@ class SLAM(object):
                 pass
 
     def draw_grid(self):
+        """Draw the occupancy grid as a function of its probability as its alpha."""
         for i in range(len(self.grid)):
             for j in range(len(self.grid[0])):
                 _alpha = 1 - self.grid[i][j]
-                pygame.draw.rect(self.screen, (255 * _alpha, 255 * _alpha, 255 * _alpha), pygame.Rect(
-                    j * self.grid_size, i * self.grid_size, self.grid_size, self.grid_size))
+                _rect = pygame.Rect(j * self.grid_size,
+                                    i * self.grid_size,
+                                    self.grid_size,
+                                    self.grid_size)
+                pygame.draw.rect(self.screen,
+                                 (255 * _alpha, 255 * _alpha, 255 * _alpha),
+                                 _rect)
 
 
 def point_distance(x_1, x_2, y_1, y_2):
