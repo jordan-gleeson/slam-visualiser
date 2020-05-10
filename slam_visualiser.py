@@ -6,23 +6,29 @@ import random
 
 
 class Game(object):
+    """Main game class.
+
+    Creates the game screen. Contains the main game loop which handles the order of execution of 
+    robot and SLAM functionality.
+    """
+
     def __init__(self):
+        # pygame setup
         pygame.init()
         pygame.key.set_repeat(300, 30)
         self.screen = pygame.display.set_mode((1280, 720), pygame.SRCALPHA)
         self.screen.fill((255, 255, 255))
         self.clock = pygame.time.Clock()
 
+        # Create a white background
         self.background = pygame.Surface(self.screen.get_size(),
                                          pygame.SRCALPHA)
         self.background = self.background.convert()
         self.background.fill((255, 255, 255))
 
-        self.gui = pygame.Surface(self.screen.get_size())
-        self.gui.set_alpha(0)
-
         pygame.display.flip()
 
+        # Setup classes
         self.world = World(self.screen)
         self.robot = RobotControl(self.screen, self.world)
         self.robot.update()
@@ -33,6 +39,7 @@ class Game(object):
         self.main()
 
     def main(self):
+        """Main game loop."""
         playing_game = True
         while playing_game:
             self.clock.tick(30)
@@ -634,7 +641,7 @@ class SLAM(object):
         self.grid_size = 11
         self.grid = [[0.5 for _ in range(self.screen.get_size()[0] // self.grid_size)]
                      for __ in range(self.screen.get_size()[1] // self.grid_size)]
-        self.show_occupancy_grid = True
+        self.show_occupancy_grid = False
 
         # Odometry Setup
         self.odo_x = self.robot.robot.x_pos
