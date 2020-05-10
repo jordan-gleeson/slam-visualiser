@@ -1,4 +1,5 @@
 import pygame
+import thorpy
 import numpy as np
 import time
 import operator
@@ -33,6 +34,7 @@ class Game(object):
         self.robot = RobotControl(self.screen, self.world)
         self.robot.update()
         self.slam = SLAM(self.screen, self.robot)
+        self.gui = GUI(self.screen, self.world, self.robot, self.slam)
 
         self.font = pygame.font.Font(None, 30)
 
@@ -48,6 +50,7 @@ class Game(object):
                 if event.type == pygame.QUIT:
                     playing_game = False
                     break
+                self.gui.menu.react(event)
             self.robot.change_velocity(pygame.key.get_pressed())
             self.world.draw()
             self.slam.update()
@@ -61,10 +64,32 @@ class Game(object):
                                     True,
                                     pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
+            self.gui.update()
             pygame.display.update()
 
         pygame.quit()
 
+class GUI(object):
+    def __init__(self, p_screen, p_world, p_robot, p_slam):
+        self.screen = p_screen
+        self.world = p_world
+        self.robot = p_robot
+        self.slam = p_slam
+        b1 = thorpy.make_button("Button", self.print())#self.robot.robot.toggle_lidar())
+        self.box = thorpy.Box(elements=[b1])
+        self.menu = thorpy.Menu(self.box)
+        for element in self.menu.get_population():
+            element.surface = self.screen
+        self.box.set_topleft((20, 20))
+        # TODO: Make button function calling work
+        
+    def update(self):
+        self.box.blit()
+        
+        self.box.update()
+        
+    def print(self):
+        print("Test")
 
 class Robot(pygame.sprite.Sprite):
     """Sprite  the robot player object.
@@ -138,6 +163,12 @@ class Robot(pygame.sprite.Sprite):
                                    (0, 0, 255, 255),
                                    _coords,
                                    3)
+                
+    def toggle_lidar(self):
+        if self.draw_lidar:
+            self.draw_lidar = False
+        else:
+            self.draw_lidar = True
 
     def rotate(self, direction):
         """Rotates the robot around it's centre."""
