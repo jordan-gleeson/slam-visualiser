@@ -1,5 +1,4 @@
 import pygame
-import thorpy
 import numpy as np
 import time
 import operator
@@ -50,7 +49,6 @@ class Game(object):
                 if event.type == pygame.QUIT:
                     playing_game = False
                     break
-                self.gui.menu.react(event)
             self.robot.change_velocity(pygame.key.get_pressed())
             self.world.draw()
             self.slam.update()
@@ -75,18 +73,9 @@ class GUI(object):
         self.world = p_world
         self.robot = p_robot
         self.slam = p_slam
-        b1 = thorpy.make_button("Button", self.print())#self.robot.robot.toggle_lidar())
-        self.box = thorpy.Box(elements=[b1])
-        self.menu = thorpy.Menu(self.box)
-        for element in self.menu.get_population():
-            element.surface = self.screen
-        self.box.set_topleft((20, 20))
-        # TODO: Make button function calling work
         
     def update(self):
-        self.box.blit()
-        
-        self.box.update()
+        pass
         
     def print(self):
         print("Test")
