@@ -1,4 +1,5 @@
 import pygame
+import pygame_gui
 import numpy as np
 import time
 import operator
@@ -43,12 +44,15 @@ class Game(object):
         """Main game loop."""
         playing_game = True
         while playing_game:
-            self.clock.tick(30)
+            _time_delta = self.clock.tick(30) / 1000.0
             self.screen.blit(self.background, (0, 0))
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     playing_game = False
                     break
+                if event.type == pygame.USEREVENT:
+                    self.gui.input(event)
+                self.gui.manager.process_events(event)
             self.robot.change_velocity(pygame.key.get_pressed())
             self.world.draw()
             self.slam.update()
@@ -62,7 +66,7 @@ class Game(object):
                                     True,
                                     pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
-            self.gui.update()
+            self.gui.update(_time_delta)
             pygame.display.update()
 
         pygame.quit()
@@ -73,10 +77,18 @@ class GUI(object):
         self.world = p_world
         self.robot = p_robot
         self.slam = p_slam
+        self.manager = pygame_gui.UIManager(self.screen.get_size())
+        self.hello_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((350, 275), (100, 50)), text="Say Hello", manager=self.manager)
         
-    def update(self):
-        pass
-        
+    def update(self, _time_delta):
+        self.manager.update(_time_delta)
+        self.manager.draw_ui(self.screen)
+    
+    def input(self, event):
+        if event.user_type == pygame_gui.UI_BUTTON_PRESSED:
+            if event.ui_element == self.hello_button:
+                self.print()
+
     def print(self):
         print("Test")
 
