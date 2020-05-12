@@ -78,7 +78,11 @@ class GUI(object):
         self.robot = p_robot
         self.slam = p_slam
         self.manager = pygame_gui.UIManager(self.screen.get_size())
-        self.hello_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((350, 275), (100, 50)), text="Say Hello", manager=self.manager)
+        self.manager.set_visual_debug_mode(False)
+        
+        # Button Setup
+        self.toggle_lidar = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((20, 20), (120, 40)), text="Toggle Lidar", manager=self.manager)
+        self.toggle_occupancy_grid = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((145, 20), (120, 40)), text="Toggle Grid", manager=self.manager)
         
     def update(self, _time_delta):
         self.manager.update(_time_delta)
@@ -86,8 +90,10 @@ class GUI(object):
     
     def input(self, event):
         if event.user_type == pygame_gui.UI_BUTTON_PRESSED:
-            if event.ui_element == self.hello_button:
-                self.print()
+            if event.ui_element == self.toggle_lidar:
+                self.robot.robot.toggle_lidar()
+            if event.ui_element == self.toggle_occupancy_grid:
+                self.slam.toggle_occupancy_grid()
 
     def print(self):
         print("Test")
@@ -755,6 +761,13 @@ class SLAM(object):
                     self.grid[_grid_y][_grid_x] = 1
             except IndexError:
                 pass
+
+    def toggle_occupancy_grid(self):
+        if self.show_occupancy_grid:
+            self.show_occupancy_grid = False
+        else:
+            self.show_occupancy_grid = True
+
 
     def draw_grid(self):
         """Draw the occupancy grid as a function of its probability as its alpha."""
