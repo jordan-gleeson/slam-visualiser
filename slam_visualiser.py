@@ -1,5 +1,5 @@
 import pygame
-import pygame_gui
+import pygame_gui as pygui
 import numpy as np
 import time
 import operator
@@ -71,6 +71,7 @@ class Game(object):
 
         pygame.quit()
 
+
 class GUI(object):
     """Contains all aspects of the GUI.
 
@@ -82,12 +83,13 @@ class GUI(object):
         p_robot: The robot object.
         p_slam: The slam algorithm object.
     """
+
     def __init__(self, p_screen, p_world, p_robot, p_slam):
         self.screen = p_screen
         self.world = p_world
         self.robot = p_robot
         self.slam = p_slam
-        self.manager = pygame_gui.UIManager(self.screen.get_size())
+        self.manager = pygui.UIManager(self.screen.get_size())
         self.manager.set_visual_debug_mode(False)
 
         self.settings_window = None
@@ -96,19 +98,20 @@ class GUI(object):
         self.toggle_lidar = None
         self.toggle_occupancy_grid = None
         self.done = None
-        self.settings_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_size()[0] - 100, 20), (80, 30)), 
-                                                            text="Settings", 
-                                                            manager=self.manager,
-                                                            container=self.settings_window)
-        
+        self.settings_button = pygui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_size()[0] - 100, 20),
+                                                                                 (80, 30)),
+                                                       text="Settings",
+                                                       manager=self.manager,
+                                                       container=self.settings_window)
+
     def update(self, _time_delta):
         """Draws the GUI."""
         self.manager.update(_time_delta)
         self.manager.draw_ui(self.screen)
-    
+
     def input(self, event):
         """Handles pygame_gui input events."""
-        if event.user_type == pygame_gui.UI_BUTTON_PRESSED:
+        if event.user_type == pygui.UI_BUTTON_PRESSED:
             if event.ui_element == self.toggle_lidar:
                 self.robot.robot.toggle_lidar()
             if event.ui_element == self.toggle_occupancy_grid:
@@ -126,24 +129,26 @@ class GUI(object):
         _hor_padding = 20
         _window_width = _button_width + (_hor_padding * 4)
         _window_height = (_button_height * 2) + (_vert_padding * 3)
-        print(_window_height, _window_width)
-        self.settings_window = pygame_gui.elements.UIWindow(rect=pygame.Rect(((self.screen.get_size()[0] / 2) - (180 / 2), self.screen.get_size()[1] / 4 - 190 / 2), 
-                                                                             (180, 240)), 
-                                                            manager=self.manager)
+
+        # TODO: Fix window sizing to use above calculations
+        self.settings_window = pygui.elements.UIWindow(rect=pygame.Rect(((self.screen.get_size()[0] / 2) - (180 / 2),
+                                                                         self.screen.get_size()[1] / 4 - 240 / 2),
+                                                                        (180, 240)),
+                                                       manager=self.manager)
 
         # Button Setup
-        self.toggle_lidar = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding), (_button_width, _button_height)), 
-                                                         text="Toggle Lidar", 
-                                                         manager=self.manager,
-                                                         container=self.settings_window)
-        self.toggle_occupancy_grid = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 2 + _button_height), (_button_width, _button_height)), 
-                                                                  text="Toggle Grid", 
-                                                                  manager=self.manager,
-                                                                  container=self.settings_window)
-        self.done = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 3 + _button_height * 2), (_button_width, _button_height)), 
-                                                                  text="Done", 
-                                                                  manager=self.manager,
-                                                                  container=self.settings_window)
+        self.toggle_lidar = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding), (_button_width, _button_height)),
+                                                    text="Toggle Lidar",
+                                                    manager=self.manager,
+                                                    container=self.settings_window)
+        self.toggle_occupancy_grid = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 2 + _button_height), (_button_width, _button_height)),
+                                                             text="Toggle Grid",
+                                                             manager=self.manager,
+                                                             container=self.settings_window)
+        self.done = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 3 + _button_height * 2), (_button_width, _button_height)),
+                                            text="Done",
+                                            manager=self.manager,
+                                            container=self.settings_window)
 
 
 class Robot(pygame.sprite.Sprite):
@@ -218,7 +223,7 @@ class Robot(pygame.sprite.Sprite):
                                    (0, 0, 255, 255),
                                    _coords,
                                    3)
-                
+
     def toggle_lidar(self):
         if self.draw_lidar:
             self.draw_lidar = False
@@ -815,7 +820,6 @@ class SLAM(object):
             self.show_occupancy_grid = False
         else:
             self.show_occupancy_grid = True
-
 
     def draw_grid(self):
         """Draw the occupancy grid as a function of its probability as its alpha."""
