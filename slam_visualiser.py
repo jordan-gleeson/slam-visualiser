@@ -72,6 +72,16 @@ class Game(object):
         pygame.quit()
 
 class GUI(object):
+    """Contains all aspects of the GUI.
+
+    Handles setup of GUI elements and the handling of input events.
+
+    Attributes:
+        p_screen: The main pygame screen surface.
+        p_world: The world map object.
+        p_robot: The robot object.
+        p_slam: The slam algorithm object.
+    """
     def __init__(self, p_screen, p_world, p_robot, p_slam):
         self.screen = p_screen
         self.world = p_world
@@ -79,24 +89,62 @@ class GUI(object):
         self.slam = p_slam
         self.manager = pygame_gui.UIManager(self.screen.get_size())
         self.manager.set_visual_debug_mode(False)
-        
+
+        self.settings_window = None
+
         # Button Setup
-        self.toggle_lidar = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((20, 20), (120, 40)), text="Toggle Lidar", manager=self.manager)
-        self.toggle_occupancy_grid = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((145, 20), (120, 40)), text="Toggle Grid", manager=self.manager)
+        self.toggle_lidar = None
+        self.toggle_occupancy_grid = None
+        self.done = None
+        self.settings_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_size()[0] - 100, 20), (80, 30)), 
+                                                            text="Settings", 
+                                                            manager=self.manager,
+                                                            container=self.settings_window)
         
     def update(self, _time_delta):
+        """Draws the GUI."""
         self.manager.update(_time_delta)
         self.manager.draw_ui(self.screen)
     
     def input(self, event):
+        """Handles pygame_gui input events."""
         if event.user_type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == self.toggle_lidar:
                 self.robot.robot.toggle_lidar()
             if event.ui_element == self.toggle_occupancy_grid:
                 self.slam.toggle_occupancy_grid()
+            if event.ui_element == self.settings_button:
+                self.settings()
+            if event.ui_element == self.done:
+                self.settings_window.kill()
 
-    def print(self):
-        print("Test")
+    def settings(self):
+        """Settings window setup."""
+        _button_width = 110
+        _button_height = 40
+        _vert_padding = 15
+        _hor_padding = 20
+        _window_width = _button_width + (_hor_padding * 4)
+        _window_height = (_button_height * 2) + (_vert_padding * 3)
+        print(_window_height, _window_width)
+        self.settings_window = pygame_gui.elements.UIWindow(rect=pygame.Rect(((self.screen.get_size()[0] / 2) - (180 / 2), self.screen.get_size()[1] / 4 - 190 / 2), 
+                                                                             (180, 240)), 
+                                                            manager=self.manager)
+
+        # Button Setup
+        self.toggle_lidar = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding), (_button_width, _button_height)), 
+                                                         text="Toggle Lidar", 
+                                                         manager=self.manager,
+                                                         container=self.settings_window)
+        self.toggle_occupancy_grid = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 2 + _button_height), (_button_width, _button_height)), 
+                                                                  text="Toggle Grid", 
+                                                                  manager=self.manager,
+                                                                  container=self.settings_window)
+        self.done = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 3 + _button_height * 2), (_button_width, _button_height)), 
+                                                                  text="Done", 
+                                                                  manager=self.manager,
+                                                                  container=self.settings_window)
+
 
 class Robot(pygame.sprite.Sprite):
     """Sprite  the robot player object.
