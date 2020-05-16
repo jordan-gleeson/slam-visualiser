@@ -95,30 +95,39 @@ class GUI(object):
         self.settings_window = None
 
         # Button Setup
-        self.toggle_lidar = None
-        self.toggle_occupancy_grid = None
-        self.done = None
+        self.toggle_lidar_btn = None
+        self.toggle_occupancy_grid_btn = None
+        self.toggle_positions_btn = None
+        self.done_btn = None
         self.settings_button = pygui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_size()[0] - 100, 20),
                                                                                  (80, 30)),
                                                        text="Settings",
                                                        manager=self.manager,
                                                        container=self.settings_window)
 
+        # Position Visualisation Setup
+        self.truth_pos = self.robot.truth_pos
+        self.odo_pos = self.slam.odo_pos
+        self.draw_positions = True
+
     def update(self, _time_delta):
         """Draws the GUI."""
+        self.position_draw()
         self.manager.update(_time_delta)
         self.manager.draw_ui(self.screen)
 
     def input(self, event):
         """Handles pygame_gui input events."""
         if event.user_type == pygui.UI_BUTTON_PRESSED:
-            if event.ui_element == self.toggle_lidar:
+            if event.ui_element == self.toggle_lidar_btn:
                 self.robot.robot.toggle_lidar()
-            if event.ui_element == self.toggle_occupancy_grid:
+            if event.ui_element == self.toggle_occupancy_grid_btn:
                 self.slam.toggle_occupancy_grid()
             if event.ui_element == self.settings_button:
                 self.settings()
-            if event.ui_element == self.done:
+            if event.ui_element == self.toggle_positions_btn:
+                self.toggle_positions()
+            if event.ui_element == self.done_btn:
                 self.settings_window.kill()
 
     def settings(self):
@@ -128,27 +137,47 @@ class GUI(object):
         _vert_padding = 15
         _hor_padding = 20
         _window_width = _button_width + (_hor_padding * 4)
-        _window_height = (_button_height * 2) + (_vert_padding * 3)
+        _window_height = (_button_height * 3) + (_vert_padding * 4)
 
         # TODO: Fix window sizing to use above calculations
         self.settings_window = pygui.elements.UIWindow(rect=pygame.Rect(((self.screen.get_size()[0] / 2) - (180 / 2),
-                                                                         self.screen.get_size()[1] / 4 - 240 / 2),
-                                                                        (180, 240)),
+                                                                         self.screen.get_size()[1] / 4 - 300 / 2),
+                                                                        (180, 300)),
                                                        manager=self.manager)
 
         # Button Setup
-        self.toggle_lidar = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding), (_button_width, _button_height)),
-                                                    text="Toggle Lidar",
-                                                    manager=self.manager,
-                                                    container=self.settings_window)
-        self.toggle_occupancy_grid = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 2 + _button_height), (_button_width, _button_height)),
-                                                             text="Toggle Grid",
-                                                             manager=self.manager,
-                                                             container=self.settings_window)
-        self.done = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 3 + _button_height * 2), (_button_width, _button_height)),
-                                            text="Done",
-                                            manager=self.manager,
-                                            container=self.settings_window)
+        self.toggle_lidar_btn = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding), (_button_width, _button_height)),
+                                                        text="Toggle Lidar",
+                                                        manager=self.manager,
+                                                        container=self.settings_window)
+        self.toggle_occupancy_grid_btn = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 2 + _button_height), (_button_width, _button_height)),
+                                                                 text="Toggle Grid",
+                                                                 manager=self.manager,
+                                                                 container=self.settings_window)
+        self.toggle_positions_btn = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 3 + _button_height * 2), (_button_width, _button_height)),
+                                                            text="Toggle Pos",
+                                                            manager=self.manager,
+                                                            container=self.settings_window)
+        self.done_btn = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 4 + _button_height * 3), (_button_width, _button_height)),
+                                                text="Done",
+                                                manager=self.manager,
+                                                container=self.settings_window)
+
+    def position_draw(self):
+        if self.draw_positions:
+            try:
+                pygame.draw.lines(self.screen, (255, 0, 0),
+                                  False, self.truth_pos)
+                pygame.draw.lines(self.screen, (0, 0, 255),
+                                  False, self.odo_pos)
+            except ValueError:
+                pass
+
+    def toggle_positions(self):
+        if self.draw_positions:
+            self.draw_positions = False
+        else:
+            self.draw_positions = True
 
 
 class Robot(pygame.sprite.Sprite):
@@ -364,6 +393,7 @@ class RobotControl(object):
         self.dummy_screen = pygame.Surface(self.screen.get_size())
         self.collision_list = []
         self.recursion_depth = 0
+        self.truth_pos = []
 
     def reset(self):
         """Reset the robot's attributes, including position and velocities."""
@@ -415,6 +445,9 @@ class RobotControl(object):
         self.robot.y_pos += self.velocity[1]
         self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
         self.odo_velocity = self.velocity
+        if len(self.truth_pos) > 1000:
+            self.truth_pos.pop(0)
+        self.truth_pos.append([self.robot.x_pos, self.robot.y_pos])
 
         # Decelerate the velocity vector if no forward input is received.
         deceleration = self.acceleration / 2
@@ -737,7 +770,8 @@ class SLAM(object):
         # Odometry Setup
         self.odo_x = self.robot.robot.x_pos
         self.odo_y = self.robot.robot.y_pos
-        self.odo_error = 0.01
+        self.odo_error = 0.2
+        self.odo_pos = []
 
     def update(self):
         """Update SLAM visuals."""
@@ -751,6 +785,9 @@ class SLAM(object):
                                          _vel_vector[0] + _vel_vector[0] * self.odo_error)
             self.odo_y += random.uniform(_vel_vector[1] - _vel_vector[1] * self.odo_error,
                                          _vel_vector[1] + _vel_vector[1] * self.odo_error)
+            if len(self.odo_pos) > 1000:
+                self.odo_pos.pop(0)
+            self.odo_pos.append([self.odo_x, self.odo_y])
         except ValueError as e:
             pass
 
