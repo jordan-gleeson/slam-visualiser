@@ -4,6 +4,7 @@ import numpy as np
 import time
 import operator
 import random
+import copy
 
 
 class Game(object):
@@ -66,6 +67,7 @@ class Game(object):
                                     True,
                                     pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
+            self.slam.icp()
             self.gui.update(_time_delta)
             pygame.display.update()
 
@@ -209,7 +211,7 @@ class Robot(pygame.sprite.Sprite):
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
         self.mask = pygame.mask.from_surface(self.image)
-        self.draw_lidar = True
+        self.draw_lidar = False
 
         # Lidar setup
         self.sample_rate = 5  # Hz
@@ -765,7 +767,7 @@ class SLAM(object):
         self.grid_size = 11
         self.grid = [[0.5 for _ in range(self.screen.get_size()[0] // self.grid_size)]
                      for __ in range(self.screen.get_size()[1] // self.grid_size)]
-        self.show_occupancy_grid = False
+        self.show_occupancy_grid = True
 
         # Odometry Setup
         self.odo_x = self.robot.robot.x_pos
@@ -870,6 +872,62 @@ class SLAM(object):
                 pygame.draw.rect(self.screen,
                                  (255 * _alpha, 255 * _alpha, 255 * _alpha),
                                  _rect)
+                
+    def icp(self):
+        _grid_probability_thresh = 0.6
+        _icp_grid_match = copy.deepcopy(self.grid)
+        _count = 0
+        # TODO: What to use for ground truth? Centre of occ grid points too varied.
+        for i in range(len(_icp_grid_match)):
+            for j in range(len(_icp_grid_match[0])):
+                if _icp_grid_match[i][j] > _grid_probability_thresh:
+                    _icp_grid_match[i][j] = 1
+                    _count += 1
+                    # print(i, j)
+                else:
+                    _icp_grid_match[i][j] = 0
+        # print(_icp_grid_match)
+        for i in range(len(_icp_grid_match)):
+            for j in range(len(_icp_grid_match[0])):
+                if _icp_grid_match[i][j]:
+                    pygame.draw.circle(self.screen, (0, 255, 0), (j * self.grid_size, i * self.grid_size), 2)
+        # Determine corresponding points
+        _pc = self.robot.robot.point_cloud
+        _corresponding_points = []
+        for _point in _pc:
+            _coords = [int(_point[0] * np.cos(_point[1]) + self.robot.robot.x_pos),  # Convert to cartesian
+                        int(_point[0] * np.sin(_point[1]) + self.robot.robot.y_pos)]
+            pygame.draw.circle(self.screen, (255, 255, 0), _coords, 2)
+            _closest_point = None
+            _closest_point_dis = 10000
+            # TODO: Distance between two points is always huge.
+            for i in range(len(_icp_grid_match)):
+                for j in range(len(_icp_grid_match[0])):
+                    if _icp_grid_match[i][j] > 0:
+                        _dis = point_distance(_coords[0], _coords[1], j * self.grid_size, i * self.grid_size)
+                        print(_count, (j * self.grid_size, i * self.grid_size), _coords, _dis)
+                        if _dis < _closest_point_dis:
+                            _closest_point_dis = _dis
+                            _closest_point = [j * self.grid_size, i * self.grid_size]
+            if _closest_point != None:
+                _corresponding_points.append([_closest_point, _point])
+        print()
+        
+        # TEMP Draw corresponding points
+        # print(_corresponding_points)
+        for _point in _corresponding_points:
+            # pygame.draw.circle(self.screen, (0, 255, 0), _point, 2)
+            pygame.draw.line(self.screen, (0, 255, 0), _point[0], _point[1])
+            # pass
+        # time.sleep(2)
+        
+        
+        # Compute rotation R, translation t (SVD)
+        # Apply R and t to all points of the set to be registered
+        # Compute the error E(R, t)
+        # While error decreased and error > threshold
+            # Repeat to determine correspondences etc.
+        # Output final alignment
 
 
 def point_distance(x_1, x_2, y_1, y_2):
