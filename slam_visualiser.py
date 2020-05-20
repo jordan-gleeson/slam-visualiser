@@ -63,7 +63,8 @@ class Game(object):
                 self.slam.occupancy_grid()
                 self.robot.robot.new_sample = False
 
-            _fps = self.font.render(str(int(self.clock.get_fps())),
+            # _fps = self.font.render(str(int(self.clock.get_fps())),
+            _fps = self.font.render(str(pygame.mouse.get_pos()),
                                     True,
                                     pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
@@ -887,40 +888,35 @@ class SLAM(object):
                 else:
                     _icp_grid_match[i][j] = 0
         # print(_icp_grid_match)
-        for i in range(len(_icp_grid_match)):
-            for j in range(len(_icp_grid_match[0])):
-                if _icp_grid_match[i][j]:
-                    pygame.draw.circle(self.screen, (0, 255, 0), (j * self.grid_size, i * self.grid_size), 2)
+        # for i in range(len(_icp_grid_match)):
+        #     for j in range(len(_icp_grid_match[0])):
+        #         if _icp_grid_match[i][j]:
+        #             pygame.draw.circle(self.screen, (0, 255, 0), (j * self.grid_size, i * self.grid_size), 2)
         # Determine corresponding points
         _pc = self.robot.robot.point_cloud
         _corresponding_points = []
         for _point in _pc:
             _coords = [int(_point[0] * np.cos(_point[1]) + self.robot.robot.x_pos),  # Convert to cartesian
                         int(_point[0] * np.sin(_point[1]) + self.robot.robot.y_pos)]
-            pygame.draw.circle(self.screen, (255, 255, 0), _coords, 2)
+            # pygame.draw.circle(self.screen, (255, 0, 0), _coords, 2)
             _closest_point = None
             _closest_point_dis = 10000
-            # TODO: Distance between two points is always huge.
+            # TODO: Use kd tree for finding the closest point instead of loop
             for i in range(len(_icp_grid_match)):
                 for j in range(len(_icp_grid_match[0])):
                     if _icp_grid_match[i][j] > 0:
-                        _dis = point_distance(_coords[0], _coords[1], j * self.grid_size, i * self.grid_size)
-                        print(_count, (j * self.grid_size, i * self.grid_size), _coords, _dis)
+                        # pygame.draw.circle(self.screen, (255, 255, 0), (j * self.grid_size, i * self.grid_size), 2)
+                        _dis = point_distance(_coords[0], j * self.grid_size, _coords[1], i * self.grid_size)
                         if _dis < _closest_point_dis:
                             _closest_point_dis = _dis
                             _closest_point = [j * self.grid_size, i * self.grid_size]
             if _closest_point != None:
-                _corresponding_points.append([_closest_point, _point])
-        print()
+                _corresponding_points.append([_closest_point, _coords])
         
         # TEMP Draw corresponding points
-        # print(_corresponding_points)
         for _point in _corresponding_points:
             # pygame.draw.circle(self.screen, (0, 255, 0), _point, 2)
             pygame.draw.line(self.screen, (0, 255, 0), _point[0], _point[1])
-            # pass
-        # time.sleep(2)
-        
         
         # Compute rotation R, translation t (SVD)
         # Apply R and t to all points of the set to be registered
