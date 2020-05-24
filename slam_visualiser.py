@@ -61,16 +61,19 @@ class Game(object):
             self.slam.odometry(self.robot.odo_velocity)
             if self.robot.robot.new_sample:
                 self.slam.occupancy_grid()
-                self.robot.robot.new_sample = False
 
+                self.slam.icp()
             # _fps = self.font.render(str(int(self.clock.get_fps())),
             _fps = self.font.render(str(pygame.mouse.get_pos()),
                                     True,
                                     pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
-            self.slam.icp()
             self.gui.update(_time_delta)
             pygame.display.update()
+            # TODO: Return to normal
+            if self.robot.robot.new_sample:
+                # time.sleep(2)
+                self.robot.robot.new_sample = False
 
         pygame.quit()
 
@@ -768,13 +771,17 @@ class SLAM(object):
         self.grid_size = 11
         self.grid = [[0.5 for _ in range(self.screen.get_size()[0] // self.grid_size)]
                      for __ in range(self.screen.get_size()[1] // self.grid_size)]
-        self.show_occupancy_grid = True
+        self.show_occupancy_grid = False
 
         # Odometry Setup
         self.odo_x = self.robot.robot.x_pos
         self.odo_y = self.robot.robot.y_pos
         self.odo_error = 0.2
         self.odo_pos = []
+
+        # ICP Setup
+        self.previous_pc = np.array([])
+        self.previous_pos = np.array([])
 
     def update(self):
         """Update SLAM visuals."""
@@ -873,57 +880,70 @@ class SLAM(object):
                 pygame.draw.rect(self.screen,
                                  (255 * _alpha, 255 * _alpha, 255 * _alpha),
                                  _rect)
-                
+
     def icp(self):
-        _grid_probability_thresh = 0.6
-        _icp_grid_match = copy.deepcopy(self.grid)
-        _count = 0
-        # TODO: What to use for ground truth? Centre of occ grid points too varied.
-        for i in range(len(_icp_grid_match)):
-            for j in range(len(_icp_grid_match[0])):
-                if _icp_grid_match[i][j] > _grid_probability_thresh:
-                    _icp_grid_match[i][j] = 1
-                    _count += 1
-                    # print(i, j)
-                else:
-                    _icp_grid_match[i][j] = 0
-        # print(_icp_grid_match)
-        # for i in range(len(_icp_grid_match)):
-        #     for j in range(len(_icp_grid_match[0])):
-        #         if _icp_grid_match[i][j]:
-        #             pygame.draw.circle(self.screen, (0, 255, 0), (j * self.grid_size, i * self.grid_size), 2)
-        # Determine corresponding points
-        _pc = self.robot.robot.point_cloud
+        def _coord_conversion(_point):
+            return [int(_point[0] * np.cos(_point[1]) + self.robot.robot.x_pos),
+                    int(_point[0] * np.sin(_point[1]) + self.robot.robot.y_pos)]
+
+        # TODO: Make iterative
+        _pc = np.apply_along_axis(_coord_conversion,
+                                  1,
+                                  self.robot.robot.point_cloud)
         _corresponding_points = []
-        for _point in _pc:
-            _coords = [int(_point[0] * np.cos(_point[1]) + self.robot.robot.x_pos),  # Convert to cartesian
-                        int(_point[0] * np.sin(_point[1]) + self.robot.robot.y_pos)]
-            # pygame.draw.circle(self.screen, (255, 0, 0), _coords, 2)
-            _closest_point = None
-            _closest_point_dis = 10000
-            # TODO: Use kd tree for finding the closest point instead of loop
-            for i in range(len(_icp_grid_match)):
-                for j in range(len(_icp_grid_match[0])):
-                    if _icp_grid_match[i][j] > 0:
-                        # pygame.draw.circle(self.screen, (255, 255, 0), (j * self.grid_size, i * self.grid_size), 2)
-                        _dis = point_distance(_coords[0], j * self.grid_size, _coords[1], i * self.grid_size)
-                        if _dis < _closest_point_dis:
-                            _closest_point_dis = _dis
-                            _closest_point = [j * self.grid_size, i * self.grid_size]
-            if _closest_point != None:
-                _corresponding_points.append([_closest_point, _coords])
-        
-        # TEMP Draw corresponding points
-        for _point in _corresponding_points:
-            # pygame.draw.circle(self.screen, (0, 255, 0), _point, 2)
-            pygame.draw.line(self.screen, (0, 255, 0), _point[0], _point[1])
-        
-        # Compute rotation R, translation t (SVD)
-        # Apply R and t to all points of the set to be registered
-        # Compute the error E(R, t)
-        # While error decreased and error > threshold
+        if self.previous_pc.any():
+            # Determine corresponding points
+            for i, _cur_point in enumerate(_pc):
+                _closest_point = None
+                _closest_point_dis = 100000
+                # TODO: Use kd tree for finding the closest point instead of loop
+                for j, _prev_point in enumerate(self.previous_pc):
+                    _dis = point_distance(_cur_point[0],
+                                          _prev_point[0],
+                                          _cur_point[1],
+                                          _prev_point[1])
+                    if _dis < _closest_point_dis:
+                        _closest_point_dis = _dis
+                        _closest_point = j
+                if _closest_point != None:
+                    _corresponding_points.append([i, _closest_point])
+
+            # Find the error
+            _error = 0
+            for _indexes in _corresponding_points:
+                _error += self.previous_pc[_indexes[1]] - _pc[_indexes[0]]
+            _error = np.hypot(_error[0], _error[1])
+
+            # Find the required rotation and translation
+            # for _point in self.previous_pc:
+            #     pygame.draw.circle(self.screen,
+            #                        (255, 0, 0),
+            #                        _point.astype(int), 3)
+            _cur_mean = np.array([_pc.mean(axis=0)]).T
+            _prev_mean = np.array([self.previous_pc.mean(axis=0)]).T
+            _dif_mean = _cur_mean - _prev_mean
+
+            _cov = np.zeros((2, 2))
+            for i, j in _corresponding_points:
+                _q_point = self.previous_pc.T[:, [j]]
+                _p_point = _pc.T[:, [i]]
+                _cov += 1 * _q_point.dot(_p_point.T)
+
+            # Apply R and t to all points of the set to be registered
+            U, S, V_T = np.linalg.svd(_cov)
+            _rot = U.dot(V_T)
+            _trans = _prev_mean - _rot.dot(_cur_mean)
+            _shifted_pc = _rot.dot(_pc.T) + _trans
+            # for _point in _shifted_pc.T:
+            #     pygame.draw.circle(self.screen, (0, 255, 0), _point.astype(int), 3)
+
+            # Compute the error E(R, t)
+            # While error decreased and error > threshold
             # Repeat to determine correspondences etc.
-        # Output final alignment
+            # Output final alignment
+
+        self.previous_pc = _pc
+        self.previous_pos = [self.robot.robot.x_pos, self.robot.robot.y_pos]
 
 
 def point_distance(x_1, x_2, y_1, y_2):
