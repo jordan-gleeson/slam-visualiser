@@ -885,14 +885,34 @@ class SLAM(object):
         def _coord_conversion(_point):
             return [int(_point[0] * np.cos(_point[1]) + self.odo_x),
                     int(_point[0] * np.sin(_point[1]) + self.odo_y)]
+        
+        def _dR(_theta):
+            return np.array([[-np.sin(_theta), -np.cos(_theta)],
+                             [np.cos(_theta), -np.sin(theta)]])
 
-        # TODO: Make iterative
+        def _R(_theta):
+            return np.array([[np.cos(_theta), -np.sin(_theta)],
+                             [np.sin(_theta), np.cos(_theta)]])
+
+        def _jacobian(_x, _p_point, _q_point):
+            _theta = x[2]
+            _jac = np.zeros((2, 3))
+            _jac[0:2, 0:2] = np.identity(2)
+            _jac[0:2, [2]] = _dR(0).dot(_p_point)
+            return _jac
+
+        def _error(_x, _p_point, _q_point):
+            
+
+        
+
         _pc = np.apply_along_axis(_coord_conversion,
                                   1,
                                   self.robot.robot.point_cloud)
         _error = 1000
         _prev_error = 2000
         _shifted_pc = _pc
+        _transformation = np.zeros((3, 1))
         if self.previous_pc.any():
             while _prev_error - _error > 1:
                 _prev_error = _error
@@ -915,10 +935,24 @@ class SLAM(object):
                         _corresponding_points.append([i, _closest_point])
 
                 # Find the error
-                _error = 0
-                for _indexes in _corresponding_points:
-                    _error += self.previous_pc[_indexes[1]] - _shifted_pc[_indexes[0]]
-                _error = np.hypot(_error[0], _error[1])
+                # _error = 0
+                # for _indexes in _corresponding_points:
+                #     _error += self.previous_pc[_indexes[1]] - _shifted_pc[_indexes[0]]
+                # _error = np.hypot(_error[0], _error[1])
+
+                # Prepare System
+                _H = np.zeros((3, 3))
+                _g = np.zeros((3, 1))
+                _chi = 0
+                for i, j in _corresponding_points:
+                    _p_point = _shifted_pc[:, [i]]
+                    _q_point = self.previous_pc[:, j]
+                    # TODO: Error function
+                    _error = 0
+                    _jac = _jacobian(_transformation, _shifted_pc)
+                    _H += _jac.T.dot(_jac)
+                    _g += _jac.T.dot(_error)
+                    _chi += _error.T * _error
 
                 # Find the required rotation and translation
                 for _point in self.previous_pc:
