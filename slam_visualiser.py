@@ -888,31 +888,46 @@ class SLAM(object):
         
         def _dR(_theta):
             return np.array([[-np.sin(_theta), -np.cos(_theta)],
-                             [np.cos(_theta), -np.sin(theta)]])
+                             [np.cos(_theta), -np.sin(_theta)]])
 
         def _R(_theta):
             return np.array([[np.cos(_theta), -np.sin(_theta)],
                              [np.sin(_theta), np.cos(_theta)]])
 
         def _jacobian(_x, _p_point, _q_point):
-            _theta = x[2]
+            _theta = _x[2]
             _jac = np.zeros((2, 3))
             _jac[0:2, 0:2] = np.identity(2)
             _jac[0:2, [2]] = _dR(0).dot(_p_point)
             return _jac
-
-        def _error(_x, _p_point, _q_point):
-            
-
         
+        def _prepare_system(x, P, Q, correspondences, kernel=lambda distance: 1.0):
+            H = np.zeros((3, 3))
+            g = np.zeros((3, 1))
+            chi = 0
+            for i, j in correspondences:
+                _p_point = P[:, [i]]
+                _q_point = Q[:, [j]]
+                e = (_dR(_transformation[2]).dot(_p_point.T) + _transformation[0:2]) - _q_point
+                weight = kernel(e) # Please ignore this weight until you reach the end of the notebook.
+                J = _jacobian(x, _p_point)
+                H += weight * J.T.dot(J)
+                g += weight * J.T.dot(e)
+                chi += e.T * e
+            return H, g, chi
 
         _pc = np.apply_along_axis(_coord_conversion,
                                   1,
                                   self.robot.robot.point_cloud)
         _error = 1000
         _prev_error = 2000
-        _shifted_pc = _pc
+        _shifted_pc = _pc.copy()
         _transformation = np.zeros((3, 1))
+        _chi_values = []
+        _transformation_vals = [_transformation.copy()]
+        _P_values = [_shifted_pc.copy()]
+        _p_copy = _shifted_pc.copy()
+        _corresp_values = []
         if self.previous_pc.any():
             while _prev_error - _error > 1:
                 _prev_error = _error
@@ -934,55 +949,59 @@ class SLAM(object):
                     if _closest_point != None:
                         _corresponding_points.append([i, _closest_point])
 
+                # Least Squares ICP
+                _rot = _R(_transformation[2])
+                _t = _transformation[0:2]
+                _corresp_values.append(_corresponding_points)
+                _H, _g, _chi = _prepare_system(_transformation, _shifted_pc, self.previous_pc, _corresponding_points)
+                _dx = np.linalg.lstsq(_H, -_g, rcond=None)[0]
+                _transformation += _dx
+                _transformation[2] = np.atan2(np.sin(_transformation[2]), np.cos(_transformation[2]))
+                _chi_values.append(_chi.item(0))
+                _transformation_vals.append(_transformation.copy())
+                _rot = _R(_transformation)
+                _t = _transformation[0:2]
+                _p_copy = _rot.dot(_shifted_pc.copy()) + _t
+                _p_values.append(_p_copy)
+                # SVD ICP
                 # Find the error
                 # _error = 0
                 # for _indexes in _corresponding_points:
                 #     _error += self.previous_pc[_indexes[1]] - _shifted_pc[_indexes[0]]
                 # _error = np.hypot(_error[0], _error[1])
 
-                # Prepare System
-                _H = np.zeros((3, 3))
-                _g = np.zeros((3, 1))
-                _chi = 0
-                for i, j in _corresponding_points:
-                    _p_point = _shifted_pc[:, [i]]
-                    _q_point = self.previous_pc[:, j]
-                    # TODO: Error function
-                    _error = 0
-                    _jac = _jacobian(_transformation, _shifted_pc)
-                    _H += _jac.T.dot(_jac)
-                    _g += _jac.T.dot(_error)
-                    _chi += _error.T * _error
+                # # Find the required rotation and translation
+                # for _point in self.previous_pc:
+                #     pygame.draw.circle(self.screen,
+                #                        (255, 0, 0),
+                #                        _point.astype(int), 3)
+                # _cur_mean = np.array([_shifted_pc.mean(axis=0)]).T
+                # _prev_mean = np.array([self.previous_pc.mean(axis=0)]).T
+                # _dif_mean = _cur_mean - _prev_mean
 
-                # Find the required rotation and translation
-                for _point in self.previous_pc:
-                    pygame.draw.circle(self.screen,
-                                       (255, 0, 0),
-                                       _point.astype(int), 3)
-                _cur_mean = np.array([_shifted_pc.mean(axis=0)]).T
-                _prev_mean = np.array([self.previous_pc.mean(axis=0)]).T
-                _dif_mean = _cur_mean - _prev_mean
+                # _cov = np.zeros((2, 2))
+                # for i, j in _corresponding_points:
+                #     _q_point = self.previous_pc.T[:, [j]]
+                #     _p_point = _shifted_pc.T[:, [i]]
+                #     _cov += 1 * _q_point.dot(_p_point.T)
 
-                _cov = np.zeros((2, 2))
-                for i, j in _corresponding_points:
-                    _q_point = self.previous_pc.T[:, [j]]
-                    _p_point = _shifted_pc.T[:, [i]]
-                    _cov += 1 * _q_point.dot(_p_point.T)
-
-                # Apply R and t to all points of the set to be registered
-                U, S, V_T = np.linalg.svd(_cov)
-                _rot = U.dot(V_T)
-                _trans = _prev_mean - _rot.dot(_cur_mean)
-                _shifted_pc = _rot.dot(_shifted_pc.T) + _trans
-                _shifted_pc = _shifted_pc.T
-                for _point in _shifted_pc:
-                    pygame.draw.circle(self.screen, (0, 255, 0), _point.astype(int), 3)
+                # # Apply R and t to all points of the set to be registered
+                # U, S, V_T = np.linalg.svd(_cov)
+                # _rot = U.dot(V_T)
+                # _trans = _prev_mean - _rot.dot(_cur_mean)
+                # _shifted_pc = _rot.dot(_shifted_pc.T) + _trans
+                # _shifted_pc = _shifted_pc.T
+                # for _point in _shifted_pc:
+                #     pygame.draw.circle(self.screen, (0, 255, 0), _point.astype(int), 3)
 
                 # Compute the error E(R, t)
                 # While error decreased and error > threshold
                 # Repeat to determine correspondences etc.
                 # Output final alignment
-                print("Error:", _prev_error, _error, _prev_error - _error)
+                
+                
+                # print("Error:", _prev_error, _error, _prev_error - _error)
+                print(_chi)
                 pygame.display.update()
         print("Done")
         self.previous_pc = _pc
