@@ -70,7 +70,7 @@ class Game(object):
                                     pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
             self.gui.update(_time_delta)
-            # pygame.display.update()
+            pygame.display.update()
             # TODO: Return to normal
             if self.robot.robot.new_sample:
                 # time.sleep(2)
@@ -886,8 +886,11 @@ class SLAM(object):
 
     def icp(self):
         def _coord_conversion(_point):
-            return [int(_point[0] * np.cos(_point[1]) + self.odo_x),
-                    int(_point[0] * np.sin(_point[1]) + self.odo_y)]
+            if _point[0] == 0 and _point[1] == 0:
+                return [int(_point[0] * np.cos(_point[1]) + self.odo_x),
+                        int(_point[0] * np.sin(_point[1]) + self.odo_y)]
+            else:
+                return [self.robot.robot.initial_laser_length, self.robot.robot.initial_laser_length]
 
         def _dR(_theta):
             return np.array([[-np.sin(_theta), -np.cos(_theta)],
@@ -935,6 +938,22 @@ class SLAM(object):
         _pc = np.apply_along_axis(_coord_conversion,
                                   1,
                                   self.robot.robot.point_cloud)
+        print("pc1", _pc)
+        print("Length", len(_pc))
+        _filter = []
+        for i, _point in enumerate(_pc):
+            # if (_point == np.array([self.robot.robot.initial_laser_length, self.robot.robot.initial_laser_length])).all():
+            # print("point", _point, self.robot.robot.initial_laser_length)
+            if _point[0] == self.robot.robot.initial_laser_length and _point[1] == self.robot.robot.initial_laser_length:
+                print("Deleting", i)
+                _filter.append(i)
+        _mask = np.ones(len(_pc), dtype=bool)
+        _mask[_filter] = False
+        _pc = _pc[_mask]
+        # for i in range(len((_filter)) - 1, 0, -1):
+        #     _pc = np.delete(_pc, _filter[i])
+        print("Length2", len(_pc))
+        print("PC", _pc)
         _error = 1000
         _prev_error = 2000
         _shifted_pc = _pc.copy()
@@ -1001,7 +1020,7 @@ class SLAM(object):
         print("Done", _chi_values)
         if len(self.history_pcs) > 0:
             while len(self.history_pcs) > self.robot.robot.sample_count * 20:
-                self.history_pcs = np.delete(self.history_pcs, 0, axis=1)
+                self.history_pcs = np.delete(self.history_pcs, 0, axis=0)
         # print(_shifted_pc)
             # print(self.history_pcs.shape, _shifted_pc.shape)
             self.history_pcs = np.append(self.history_pcs, _shifted_pc, axis=0)
@@ -1019,7 +1038,7 @@ class SLAM(object):
         #             pygame.draw.circle(self.screen,
         #                                (255, 0, 0),
         #                                _point.astype(int), 3)
-        pygame.display.update()
+        # pygame.display.update()
         # time.sleep(3)
 
         self.previous_pc = _pc
