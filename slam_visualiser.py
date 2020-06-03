@@ -783,7 +783,7 @@ class SLAM(object):
 
         # ICP Setup
         self.previous_pc = np.array([])
-        self.previous_pos = np.array([])
+        self.previous_pos = np.array([self.odo_x, self.odo_y])
         self.history_pcs = np.array([])
 
     def update(self):
@@ -887,8 +887,8 @@ class SLAM(object):
     def icp(self):
         def _coord_conversion(_point):
             if _point[0] != 0 and _point[1] != 0:
-                return [int(_point[0] * np.cos(_point[1]) + self.odo_x),
-                        int(_point[0] * np.sin(_point[1]) + self.odo_y)]
+                return [int(_point[0] * np.cos(_point[1]) + self.previous_pos[0]),
+                        int(_point[0] * np.sin(_point[1]) + self.previous_pos[1])]
             else:
                 return [self.robot.robot.initial_laser_length, self.robot.robot.initial_laser_length]
 
@@ -901,14 +901,17 @@ class SLAM(object):
                              [np.sin(theta),  np.cos(theta)]])
 
         def _jacobian(_x, _p_point):
-            _theta = _x[2]
+            _theta = _x[2][0]
+            # print("theta", _theta)
             _jac = np.zeros((2, 3))
             _jac[0:2, 0:2] = np.identity(2)
-            _jac[0:2, [2]] = _dR(0).dot(_p_point)
+            _jac[0:2, [2]] = _dR(_theta).dot(_p_point)
             return _jac
 
         def _error_func(_x, _p_point, _q_point):
-            rotation = R(_x[2][0])
+            r = _x[2][0]
+            rotation = R(r)
+            # print("rotation", r)
             # a = R(_x[2][0])
             translation = _x[0:2]
             # print("x2", _x[2], _x.shape)
@@ -951,6 +954,10 @@ class SLAM(object):
         _error = 1000
         _prev_error = 2000
         _shifted_pc = _pc.copy()
+
+        for _point in _shifted_pc:
+                    pygame.draw.circle(self.screen, (0, 255, 0), _point.astype(int), 3)
+
         _transformation = np.zeros((3, 1))
         _chi_values = [2000, 1000]
         _transformation_vals = [_transformation.copy()]
@@ -1001,8 +1008,15 @@ class SLAM(object):
                 _p_copy = _rot.dot(_shifted_pc.T.copy()) + _t
                 _shifted_pc = _p_copy.T.copy()
                 _P_values.append(_p_copy)
-                print(_transformation)
+                # print(_transformation)
 
+                for _point in _shifted_pc:
+                    _g = 50 * _count
+                    if _g > 255:
+                        _g = 255
+                    pygame.draw.circle(self.screen, (255, _g, 0), _point.astype(int), 3)
+                pygame.display.update()
+                time.sleep(1)
                 # Compute the error E(R, t)
                 # While error decreased and error > threshold
                 # Repeat to determine correspondences etc.
@@ -1011,9 +1025,9 @@ class SLAM(object):
                 # print("Error:", _prev_error, _error, _prev_error - _error)
                 # print("chi", _chi.item(0))
                 # print("transformation", _transformation)
-        print("Done", _chi_values)
+        # print("Done", _chi_values)
         if len(self.history_pcs) > 0:
-            while len(self.history_pcs) > self.robot.robot.sample_count * 20:
+            while len(self.history_pcs) > self.robot.robot.sample_count * 2:
                 self.history_pcs = np.delete(self.history_pcs, 0, axis=0)
         # print(_shifted_pc)
             # print(self.history_pcs.shape, _shifted_pc.shape)
@@ -1033,7 +1047,7 @@ class SLAM(object):
         #                                (255, 0, 0),
         #                                _point.astype(int), 3)
         pygame.display.update()
-        # time.sleep(3)
+        time.sleep(3)
 
         self.previous_pc = _pc
         self.previous_pos = [self.odo_x, self.odo_y]
