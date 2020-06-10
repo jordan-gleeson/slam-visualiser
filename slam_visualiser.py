@@ -1,15 +1,15 @@
-import pygame
-import pygame_gui as pygui
-import numpy as np
 import time
 import operator
 import random
+import numpy as np
+import pygame
+import pygame_gui as pygui
 
 
-class Game(object):
+class Game():
     """Main game class.
 
-    Creates the game screen. Contains the main game loop which handles the order of execution of 
+    Creates the game screen. Contains the main game loop which handles the order of execution of
     robot and SLAM functionality.
     """
 
@@ -42,17 +42,17 @@ class Game(object):
 
     def main(self):
         """Main game loop."""
-        playing_game = True
-        while playing_game:
+        _playing_game = True
+        while _playing_game:
             _time_delta = self.clock.tick(30) / 1000.0
             self.screen.blit(self.background, (0, 0))
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    playing_game = False
+            for _event in pygame.event.get():
+                if _event.type == pygame.QUIT:
+                    _playing_game = False
                     break
-                if event.type == pygame.USEREVENT:
-                    self.gui.input(event)
-                self.gui.manager.process_events(event)
+                if _event.type == pygame.USEREVENT:
+                    self.gui.input(_event)
+                self.gui.manager.process_events(_event)
             self.robot.change_velocity(pygame.key.get_pressed())
             self.world.draw()
             self.slam.update()
@@ -72,23 +72,23 @@ class Game(object):
         pygame.quit()
 
 
-class GUI(object):
+class GUI():
     """Contains all aspects of the GUI.
 
     Handles setup of GUI elements and the handling of input events.
 
     Attributes:
-        p_screen: The main pygame screen surface.
-        p_world: The world map object.
-        p_robot: The robot object.
-        p_slam: The slam algorithm object.
+        _p_screen: The main pygame screen surface.
+        _p_world: The world map object.
+        _p_robot: The robot object.
+        _p_slam: The slam algorithm object.
     """
 
-    def __init__(self, p_screen, p_world, p_robot, p_slam):
-        self.screen = p_screen
-        self.world = p_world
-        self.robot = p_robot
-        self.slam = p_slam
+    def __init__(self, _p_screen, _p_world, _p_robot, _p_slam):
+        self.screen = _p_screen
+        self.world = _p_world
+        self.robot = _p_robot
+        self.slam = _p_slam
         self.manager = pygui.UIManager(self.screen.get_size())
         self.manager.set_visual_debug_mode(False)
 
@@ -99,8 +99,9 @@ class GUI(object):
         self.toggle_occupancy_grid_btn = None
         self.toggle_positions_btn = None
         self.done_btn = None
-        self.settings_button = pygui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_size()[0] - 100, 20),
-                                                                                 (80, 30)),
+        _settings_rect = pygame.Rect(
+            (self.screen.get_size()[0] - 100, 20), (80, 30))
+        self.settings_button = pygui.elements.UIButton(relative_rect=_settings_rect,
                                                        text="Settings",
                                                        manager=self.manager,
                                                        container=self.settings_window)
@@ -116,18 +117,18 @@ class GUI(object):
         self.manager.update(_time_delta)
         self.manager.draw_ui(self.screen)
 
-    def input(self, event):
+    def input(self, _event):
         """Handles pygame_gui input events."""
-        if event.user_type == pygui.UI_BUTTON_PRESSED:
-            if event.ui_element == self.toggle_lidar_btn:
+        if _event.user_type == pygui.UI_BUTTON_PRESSED:
+            if _event.ui_element == self.toggle_lidar_btn:
                 self.robot.robot.toggle_lidar()
-            if event.ui_element == self.toggle_occupancy_grid_btn:
+            if _event.ui_element == self.toggle_occupancy_grid_btn:
                 self.slam.toggle_occupancy_grid()
-            if event.ui_element == self.settings_button:
+            if _event.ui_element == self.settings_button:
                 self.settings()
-            if event.ui_element == self.toggle_positions_btn:
+            if _event.ui_element == self.toggle_positions_btn:
                 self.toggle_positions()
-            if event.ui_element == self.done_btn:
+            if _event.ui_element == self.done_btn:
                 self.settings_window.kill()
 
     def settings(self):
@@ -140,30 +141,40 @@ class GUI(object):
         _window_height = (_button_height * 3) + (_vert_padding * 4)
 
         # TODO: Fix window sizing to use above calculations
-        self.settings_window = pygui.elements.UIWindow(rect=pygame.Rect(((self.screen.get_size()[0] / 2) - (180 / 2),
-                                                                         self.screen.get_size()[1] / 4 - 300 / 2),
-                                                                        (180, 300)),
+        _settings_window_rect = pygame.Rect(((self.screen.get_size()[0] / 2) - (180 / 2),
+                                             self.screen.get_size()[1] / 4 - 300 / 2),
+                                            (180, 300))
+        self.settings_window = pygui.elements.UIWindow(rect=_settings_window_rect,
                                                        manager=self.manager)
 
         # Button Setup
-        self.toggle_lidar_btn = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding), (_button_width, _button_height)),
+        _lidar_rect = pygame.Rect((_hor_padding, _vert_padding),
+                                  (_button_width, _button_height))
+        self.toggle_lidar_btn = pygui.elements.UIButton(relative_rect=_lidar_rect,
                                                         text="Toggle Lidar",
                                                         manager=self.manager,
                                                         container=self.settings_window)
-        self.toggle_occupancy_grid_btn = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 2 + _button_height), (_button_width, _button_height)),
+        _occupancy_rect = pygame.Rect((_hor_padding, _vert_padding * 2 + _button_height),
+                                      (_button_width, _button_height))
+        self.toggle_occupancy_grid_btn = pygui.elements.UIButton(relative_rect=_occupancy_rect,
                                                                  text="Toggle Grid",
                                                                  manager=self.manager,
                                                                  container=self.settings_window)
-        self.toggle_positions_btn = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 3 + _button_height * 2), (_button_width, _button_height)),
+        _positions_rect = pygame.Rect((_hor_padding, _vert_padding * 3 + _button_height * 2),
+                                      (_button_width, _button_height))
+        self.toggle_positions_btn = pygui.elements.UIButton(relative_rect=_positions_rect,
                                                             text="Toggle Pos",
                                                             manager=self.manager,
                                                             container=self.settings_window)
-        self.done_btn = pygui.elements.UIButton(relative_rect=pygame.Rect((_hor_padding, _vert_padding * 4 + _button_height * 3), (_button_width, _button_height)),
+        _done_rect = pygame.Rect((_hor_padding, _vert_padding * 4 + _button_height * 3),
+                                 (_button_width, _button_height))
+        self.done_btn = pygui.elements.UIButton(relative_rect=_done_rect,
                                                 text="Done",
                                                 manager=self.manager,
                                                 container=self.settings_window)
 
     def position_draw(self):
+        """Draw the lines that depict the robot's path historically."""
         if self.draw_positions:
             try:
                 pygame.draw.lines(self.screen, (255, 0, 0),
@@ -174,6 +185,7 @@ class GUI(object):
                 pass
 
     def toggle_positions(self):
+        """Toggle whether or not the robot's historical path is visualised."""
         if self.draw_positions:
             self.draw_positions = False
         else:
@@ -188,13 +200,14 @@ class Robot(pygame.sprite.Sprite):
     sensor calculations.
 
     Attributes:
-        p_screen: The main pygame screen surface.
+        _p_screen: The main pygame screen surface.
+        _p_world: The world map as drawn by the World class.
     """
 
-    def __init__(self, p_screen, p_world):
+    def __init__(self, _p_screen, _p_world):
         pygame.sprite.Sprite.__init__(self)
-        self.screen = p_screen
-        self.world = p_world
+        self.screen = _p_screen
+        self.world = _p_world
         self.image = pygame.image.load("roomba.png")
         self.image = pygame.transform.smoothscale(self.image, (50, 50))
         self.image_size = self.image.get_size()
@@ -220,18 +233,18 @@ class Robot(pygame.sprite.Sprite):
         self.new_sample = True
 
         self.lasers = pygame.sprite.Group()
-        lidar = pygame.math.Vector2()
-        lidar.xy = (self.x_pos, self.y_pos)
+        _lidar = pygame.math.Vector2()
+        _lidar.xy = (self.x_pos, self.y_pos)
         self.initial_laser_length = int(np.sqrt(
             np.square(self.screen.get_width()) + np.square(self.screen.get_height())))
         for i in range(self.sample_count):
-            degree_multiplier = 360 / self.sample_count
-            cur_angle = int(i * degree_multiplier)
-            self.angle_ref.append(cur_angle)
-            laser = pygame.math.Vector2()
-            laser.from_polar((self.initial_laser_length, cur_angle))
-            laser_sprite = Laser(self.screen, lidar, laser)
-            self.lasers.add(laser_sprite)
+            _degree_multiplier = 360 / self.sample_count
+            _cur_angle = int(i * _degree_multiplier)
+            self.angle_ref.append(_cur_angle)
+            _laser = pygame.math.Vector2()
+            _laser.from_polar((self.initial_laser_length, _cur_angle))
+            _laser_sprite = Laser(self.screen, _lidar, _laser)
+            self.lasers.add(_laser_sprite)
         self.lasers_draw = pygame.sprite.Group()
 
     def update(self):
@@ -254,14 +267,15 @@ class Robot(pygame.sprite.Sprite):
                                    3)
 
     def toggle_lidar(self):
+        """Toggle whether or not the lidar sensor is visualised."""
         if self.draw_lidar:
             self.draw_lidar = False
         else:
             self.draw_lidar = True
 
-    def rotate(self, direction):
+    def rotate(self, _direction):
         """Rotates the robot around it's centre."""
-        self.image = pygame.transform.rotate(self.og_image, direction)
+        self.image = pygame.transform.rotate(self.og_image, _direction)
         self.rect = self.image.get_rect()
         self.rect.center = (self.x_pos, self.y_pos)
 
@@ -282,18 +296,18 @@ class Robot(pygame.sprite.Sprite):
         else:
             _slice_to = _slice_from + _iterations_per_frame
         # Update the position of each of the laser sprites in self.lasers
-        lidar = pygame.math.Vector2()
-        lidar.xy = (self.x_pos, self.y_pos)
-        for sprite in self.lasers.sprites()[_slice_from:_slice_to]:
-            sprite.origin = lidar
-            sprite.update()
+        _lidar = pygame.math.Vector2()
+        _lidar.xy = (self.x_pos, self.y_pos)
+        for _sprite in self.lasers.sprites()[_slice_from:_slice_to]:
+            _sprite.origin = _lidar
+            _sprite.update()
 
         # Check wall collisions in quadrants
         _quad_list = [[[0, 90], operator.ge, operator.ge],
                       [[90, 181], operator.lt, operator.ge],
                       [[-90, 0], operator.ge, operator.lt],
                       [[-181, -90], operator.lt, operator.lt]]
-        collision_list = {}
+        _collision_list = {}
         _pixel_buffer = self.world.size * 2
         for _quad in _quad_list:
             _quad_lasers = pygame.sprite.Group()
@@ -315,49 +329,49 @@ class Robot(pygame.sprite.Sprite):
                 if _quad[1](_cur_pos[0], _x_buf):
                     if _quad[2](_cur_pos[1], _y_buf):
                         _quad_walls.add(_wall)
-            collision_list.update(pygame.sprite.groupcollide(_quad_lasers,
-                                                             _quad_walls,
-                                                             False,
-                                                             False,
-                                                             pygame.sprite.collide_mask))
+            _collision_list.update(pygame.sprite.groupcollide(_quad_lasers,
+                                                              _quad_walls,
+                                                              False,
+                                                              False,
+                                                              pygame.sprite.collide_mask))
 
-        if collision_list:
-            for laser in collision_list:
+        if _collision_list:
+            for _laser in _collision_list:
                 # For each laser, find the closest wall to the robot it is colliding with
-                closest_wall = None
-                closest_distance = self.initial_laser_length
-                for wall in collision_list[laser]:
+                _closest_wall = None
+                _closest_distance = self.initial_laser_length
+                for _wall in _collision_list[_laser]:
                     cur_distance = point_distance(self.x_pos,
-                                                  wall.rect.center[0],
+                                                  _wall.rect.center[0],
                                                   self.y_pos,
-                                                  wall.rect.center[1])
-                    if cur_distance < closest_distance:
-                        closest_wall = wall
-                        closest_distance = cur_distance
+                                                  _wall.rect.center[1])
+                    if cur_distance < _closest_distance:
+                        _closest_wall = _wall
+                        _closest_distance = cur_distance
 
                 # Find the closest point on the closest wall to the robot
-                current_pos = pygame.math.Vector2()
-                current_pos.update(self.x_pos, self.y_pos)
-                heading = laser.angle
-                direction = heading.normalize()
-                closest_point = [self.initial_laser_length,
-                                 self.initial_laser_length]
+                _current_pos = pygame.math.Vector2()
+                _current_pos.update(self.x_pos, self.y_pos)
+                _heading = _laser.angle
+                _direction = _heading.normalize()
+                _closest_point = [self.initial_laser_length,
+                                  self.initial_laser_length]
                 for _ in range(self.initial_laser_length):
-                    current_pos += direction
-                    if closest_wall.rect.collidepoint(current_pos):
-                        _r = np.sqrt(np.square(self.x_pos - current_pos.x)
-                                     + np.square(self.y_pos - current_pos.y))
-                        _theta = np.arctan2(-(self.y_pos - current_pos.y), -
-                                            (self.x_pos - current_pos.x))
-                        closest_point = [_r, _theta]
+                    _current_pos += _direction
+                    if _closest_wall.rect.collidepoint(_current_pos):
+                        _r = np.sqrt(np.square(self.x_pos - _current_pos.x)
+                                     + np.square(self.y_pos - _current_pos.y))
+                        _theta = np.arctan2(-(self.y_pos - _current_pos.y), -
+                                            (self.x_pos - _current_pos.x))
+                        _closest_point = [_r, _theta]
                         break
 
                 # Write resulting point to the point cloud
-                if not closest_point == [self.initial_laser_length, self.initial_laser_length]:
-                    _cur_angle = (round(heading.as_polar()[1]) + 450) % 360
+                if not _closest_point == [self.initial_laser_length, self.initial_laser_length]:
+                    _cur_angle = (round(_heading.as_polar()[1]) + 450) % 360
                     try:
                         self.point_cloud[self.angle_ref.index(
-                            _cur_angle)] = closest_point
+                            _cur_angle)] = _closest_point
                     except ValueError:
                         pass
 
@@ -368,21 +382,21 @@ class Robot(pygame.sprite.Sprite):
             self.lidar_state += 1
 
 
-class RobotControl(object):
+class RobotControl():
     """Controls the robot.
 
     Handles the robot's translation and rotation based on user input, including collisions,
     acceleration and deceleration.
 
     Attributes:
-        p_screen: The main pygame screen surface.
-        p_world: The world map as drawn by the World class.
+        _p_screen: The main pygame screen surface.
+        _p_world: The world map as drawn by the World class.
     """
 
-    def __init__(self, p_screen, p_world):
-        self.screen = p_screen
-        self.robot = Robot(self.screen, p_world)
-        self.world = p_world
+    def __init__(self, _p_screen, _p_world):
+        self.screen = _p_screen
+        self.robot = Robot(self.screen, _p_world)
+        self.world = _p_world
         # (+x velocity, +y velocity, velocity magnitude) pixels/tick
         self.velocity = [0, 0, 0]
         self.odo_velocity = self.velocity
@@ -421,11 +435,11 @@ class RobotControl(object):
         forward, decelerate velocities.
         """
         # Check if a collision has occurred, and zero the velocity axis associated with it.
-        collision_side = self.collision_detector()
-        self.collision_list.append(collision_side)
+        _collision_side = self.collision_detector()
+        self.collision_list.append(_collision_side)
         if len(self.collision_list) > 3:
             self.collision_list.pop(0)
-        if not collision_side:
+        if not _collision_side:
             self.collision_list = []
         if "TOP" in self.collision_list:
             if self.velocity[1] < 0:
@@ -450,37 +464,37 @@ class RobotControl(object):
         self.truth_pos.append([self.robot.x_pos, self.robot.y_pos])
 
         # Decelerate the velocity vector if no forward input is received.
-        deceleration = self.acceleration / 2
+        _deceleration = self.acceleration / 2
         if "UP" not in self.cur_keys:
             if self.velocity[0] > 0:
-                self.velocity[0] -= deceleration
+                self.velocity[0] -= _deceleration
             if self.velocity[0] < 0:
-                self.velocity[0] += deceleration
+                self.velocity[0] += _deceleration
             if self.velocity[1] > 0:
-                self.velocity[1] -= deceleration
+                self.velocity[1] -= _deceleration
             if self.velocity[1] < 0:
-                self.velocity[1] += deceleration
-            if self.velocity[0] < deceleration and self.velocity[0] > deceleration * -1:
+                self.velocity[1] += _deceleration
+            if self.velocity[0] < _deceleration and self.velocity[0] > _deceleration * -1:
                 self.velocity[0] = 0
-            if self.velocity[1] < deceleration and self.velocity[1] > deceleration * -1:
+            if self.velocity[1] < _deceleration and self.velocity[1] > _deceleration * -1:
                 self.velocity[1] = 0
 
-    def change_velocity(self, keys):
+    def change_velocity(self, _keys):
         """Controls the robot's velocity.
 
         This function receives input from the user and updates the Robot.angular_velocity and
         Robot.velocity vectors accordingly.
 
         Attributes:
-            keys: An array containing the current state of all keys.
+            _keys: An array containing the current state of all keys.
         """
         # Get input and sets the rotation according to the angular velocity.
-        pressed_keys = self.convert_key(keys)
-        if "R" in pressed_keys:
+        _pressed_keys = self.convert_key(_keys)
+        if "R" in _pressed_keys:
             self.reset()
-        if "RIGHT" in pressed_keys:
+        if "RIGHT" in _pressed_keys:
             self.robot.angle -= self.angular_velocity
-        if "LEFT" in pressed_keys:
+        if "LEFT" in _pressed_keys:
             self.robot.angle += self.angular_velocity
 
         # Bind the robot.angle to remain < 180 and > -180.
@@ -490,29 +504,29 @@ class RobotControl(object):
             self.robot.angle = 180 + (self.robot.angle + 180)
 
         # Calculate the current magnitude of the velocity vector.
-        speed = self.acceleration * 2
+        _speed = self.acceleration * 2
         self.velocity[2] = np.sqrt(
             np.square(self.velocity[0]) + np.square(self.velocity[1]))
 
         # Calculate the axis velocity components according to the current direction and desired
         # speed.
-        x_vec = np.cos(-1 * np.deg2rad(self.robot.angle + 90)) * speed
-        y_vec = np.sin(-1 * np.deg2rad(self.robot.angle + 90)) * speed
-        if "UP" in pressed_keys:
-            self.velocity[0] += self.acceleration * x_vec
-            self.velocity[1] += self.acceleration * y_vec
+        _x_vec = np.cos(-1 * np.deg2rad(self.robot.angle + 90)) * _speed
+        _y_vec = np.sin(-1 * np.deg2rad(self.robot.angle + 90)) * _speed
+        if "UP" in _pressed_keys:
+            self.velocity[0] += self.acceleration * _x_vec
+            self.velocity[1] += self.acceleration * _y_vec
             self.velocity[2] = np.sqrt(
                 np.square(self.velocity[0]) + np.square(self.velocity[1]))
             # Normalise the velocity vectors if the velocity's magnitude is greater than the
             # desired maximum velocity.
             if self.velocity[2] > self.max_velocity:
-                divider = self.max_velocity / \
+                _divider = self.max_velocity / \
                     np.sqrt(
                         np.square(self.velocity[0]) + np.square(self.velocity[1]))
-                self.velocity[0] = divider * self.velocity[0]
-                self.velocity[1] = divider * self.velocity[1]
+                self.velocity[0] = _divider * self.velocity[0]
+                self.velocity[1] = _divider * self.velocity[1]
 
-    def convert_key(self, keys):
+    def convert_key(self, _keys):
         """Converts the pressed key information into a string array.
 
         This function takes the passed array of pygame keys and converts it to a list of the
@@ -528,7 +542,7 @@ class RobotControl(object):
                           [pygame.K_DOWN, "DOWN"],
                           [pygame.K_r, "R"]]
         for _key in _keys_to_check:
-            if keys[_key[0]]:
+            if _keys[_key[0]]:
                 if _key[1] not in self.cur_keys:
                     self.cur_keys.append(_key[1])
                 _action = True
@@ -552,59 +566,59 @@ class RobotControl(object):
         cases where the robot is colliding with two walls simultaneously, the function utilises
         recursion to find the second closest wall.
         """
-        collision_list = pygame.sprite.spritecollide(self.robot,
-                                                     self.world.wall_list,
-                                                     False,
-                                                     pygame.sprite.collide_mask)
-        if len(collision_list) > 0:
+        _collision_list = pygame.sprite.spritecollide(self.robot,
+                                                      self.world.wall_list,
+                                                      False,
+                                                      pygame.sprite.collide_mask)
+        if len(_collision_list) > 0:
             # Find the closest colliding wall
-            closest_distance = self.robot.initial_laser_length
-            closest_wall = None
-            for wall in collision_list:
+            _closest_distance = self.robot.initial_laser_length
+            _closest_wall = None
+            for _wall in _collision_list:
                 cur_distance = point_distance(self.robot.x_pos,
-                                              wall.rect.center[0],
+                                              _wall.rect.center[0],
                                               self.robot.y_pos,
-                                              wall.rect.center[1])
-                if cur_distance < closest_distance:
-                    s_closest_wall = closest_wall
-                    closest_wall = wall
-                    closest_distance = cur_distance
+                                              _wall.rect.center[1])
+                if cur_distance < _closest_distance:
+                    s_closest_wall = _closest_wall
+                    _closest_wall = _wall
+                    _closest_distance = cur_distance
             # If performing recursion, find the second closest wall
             if self.recursion_depth > 0 and not s_closest_wall is None:
-                closest_wall = s_closest_wall
-            wall = closest_wall
+                _closest_wall = s_closest_wall
+            _wall = _closest_wall
 
             # Find which side of the robot is closest to the closest wall
-            sides = [self.robot.hitbox.midtop, self.robot.hitbox.midright,
-                     self.robot.hitbox.midbottom, self.robot.hitbox.midleft]
-            closest_side = -1
-            closest_side_distance = self.robot.initial_laser_length
-            for i, side in enumerate(sides):
-                distance = point_distance(side[0],
-                                          wall.rect.center[0],
-                                          side[1],
-                                          wall.rect.center[1])
-                if distance < closest_side_distance:
-                    closest_side_distance = distance
-                    closest_side = i
-            to_return = None
-            if closest_side == 0:
-                to_return = "TOP"
-            if closest_side == 1:
-                to_return = "RIGHT"
-            if closest_side == 2:
-                to_return = "BOTTOM"
-            if closest_side == 3:
-                to_return = "LEFT"
+            _sides = [self.robot.hitbox.midtop, self.robot.hitbox.midright,
+                      self.robot.hitbox.midbottom, self.robot.hitbox.midleft]
+            _closest_side = -1
+            _closest_side_distance = self.robot.initial_laser_length
+            for _i, _side in enumerate(_sides):
+                distance = point_distance(_side[0],
+                                          _wall.rect.center[0],
+                                          _side[1],
+                                          _wall.rect.center[1])
+                if distance < _closest_side_distance:
+                    _closest_side_distance = distance
+                    _closest_side = _i
+            _to_return = None
+            if _closest_side == 0:
+                _to_return = "TOP"
+            if _closest_side == 1:
+                _to_return = "RIGHT"
+            if _closest_side == 2:
+                _to_return = "BOTTOM"
+            if _closest_side == 3:
+                _to_return = "LEFT"
 
             # If the robot is already colliding with a wall, collide the second closest wall
             if len(self.collision_list) > 0:
-                if to_return == self.collision_list[len(self.collision_list) - 1]:
+                if _to_return == self.collision_list[len(self.collision_list) - 1]:
                     if self.recursion_depth <= 1:
                         self.recursion_depth += 1
                         return self.collision_detector()
             self.recursion_depth = 0
-            return to_return
+            return _to_return
         return None
 
 
@@ -616,50 +630,51 @@ class Laser(pygame.sprite.Sprite):
     also handles the positional updates sent from RobotControl.
 
     Attributes:
-        p_screen: The main pygame screen surface.
-        origin: A pygame.math.Vector2() object that is the robot's base position.
-        angle: A pygame.math.Vector2() object that contains polar coordinates stating the laser's
-            length and direction angle.
+        _p_screen: The main pygame screen surface.
+        _origin: A pygame.math.Vector2() object that is the robot's base position.
+        _angle: A pygame.math.Vector2() object that contains polar coordinates stating the laser's
+            length and direction _angle.
     """
 
-    def __init__(self, p_screen, origin, angle):
+    def __init__(self, _p_screen, _origin, _angle):
         pygame.sprite.Sprite.__init__(self)
 
         # Use a "dummy" surface to determine the width and height of the rotated laser rect
-        dummy_screen = pygame.Surface(
-            (p_screen.get_height() * 2, p_screen.get_width() * 2),
+        _dummy_screen = pygame.Surface(
+            (_p_screen.get_height() * 2, _p_screen.get_width() * 2),
             pygame.SRCALPHA)
-        dummy_rect = pygame.draw.line(dummy_screen,
-                                      (0, 255, 0, 255),
-                                      origin + origin,
-                                      origin + origin + angle)
+        _dummy_rect = pygame.draw.line(_dummy_screen,
+                                       (0, 255, 0, 255),
+                                       _origin + _origin,
+                                       _origin + _origin + _angle)
 
-        self.origin = origin
-        self.angle = angle
-        int_angle = int(angle.as_polar()[1])
+        self.origin = _origin
+        self.angle = _angle
+        _int_angle = int(_angle.as_polar()[1])
         # Find an offset for the laser's draw position depending on its angle
-        if int_angle >= 0 and int_angle <= 90:
+        if 0 <= _int_angle <= 90:
             self.x_offset = 0
             self.y_offset = 0
-        elif int_angle > 90:
-            self.x_offset = -dummy_rect.width
+        elif _int_angle > 90:
+            self.x_offset = -_dummy_rect.width
             self.y_offset = 0
-        elif int_angle < -90:
-            self.x_offset = -dummy_rect.width
-            self.y_offset = -dummy_rect.height
-        elif int_angle < 0 and int_angle >= -90:
+        elif _int_angle < -90:
+            self.x_offset = -_dummy_rect.width
+            self.y_offset = -_dummy_rect.height
+        elif -90 <= _int_angle < 0:
             self.x_offset = 0
-            self.y_offset = -dummy_rect.height
+            self.y_offset = -_dummy_rect.height
 
-        self.screen = p_screen
-        self.image = pygame.Surface((dummy_rect.width, dummy_rect.height),
+        self.screen = _p_screen
+        self.image = pygame.Surface((_dummy_rect.width, _dummy_rect.height),
                                     pygame.SRCALPHA)
         self.new_start = (self.origin.x + self.x_offset,
                           self.origin.y + self.y_offset)
         self.rect = pygame.draw.aaline(self.image,
                                        (255, 0, 0, 255),
                                        (-self.x_offset, - self.y_offset),
-                                       (int(angle.x - self.x_offset), int(angle.y - self.y_offset)))
+                                       (int(_angle.x - self.x_offset),
+                                        int(_angle.y - self.y_offset)))
         self.mask = pygame.mask.from_surface(self.image, 50)
 
     def update(self):
@@ -676,41 +691,41 @@ class Wall(pygame.sprite.Sprite):
     for each laser depending on its given rotation. Also contains the laser's collision mask.
 
     Attributes:
-        top: The desired pixel for the top of the wall.
-        left: The desired pixel for the left of the wall.
-        width: The desired width of the wall.
-        height: The desired height of the wall.
+        _top: The desired pixel for the top of the wall.
+        _left: The desired pixel for the left of the wall.
+        _width: The desired width of the wall.
+        _height: The desired height of the wall.
     """
 
-    def __init__(self, left, top, width, height):
+    def __init__(self, _left, _top, _width, _height):
         pygame.sprite.Sprite.__init__(self)
-        self.rect = pygame.Rect(left, top, width, height)
+        self.rect = pygame.Rect(_left, _top, _width, _height)
         self.color = (0, 0, 0, 255)
-        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
+        self.image = pygame.Surface((_width, _height), pygame.SRCALPHA)
         self.image.fill(self.color)
         self.mask = pygame.mask.from_threshold(self.image,
                                                pygame.Color('black'),
                                                (1, 1, 1, 255))
 
-    def update(self, color):
+    def update(self, _color):
         """Update the wall's colour.
 
         Used for debugging purposes only at this stage.
         """
-        self.image.fill(color)
+        self.image.fill(_color)
 
 
-class World(object):
+class World():
     """Writes and draws the world map.
 
     Handles the attributes for the world map and draws.
 
     Attributes:
-        p_screen: The main pygame screen surface.
+        _p_screen: The main pygame screen surface.
     """
 
-    def __init__(self, p_screen):
-        self.screen = p_screen
+    def __init__(self, _p_screen):
+        self.screen = _p_screen
         self.size = 20
         self.grid = [[0 for _ in range(self.screen.get_size()[0] // self.size)]
                      for __ in range(self.screen.get_size()[1] // self.size)]
@@ -726,8 +741,8 @@ class World(object):
                     self.grid[i][j] = 1
                 else:
                     self.grid[i][j] = 0
-                if i > 20 and i < 30:
-                    if j > 20 and j < 30:
+                if 20 < i < 30:
+                    if 20 < j < 30:
                         self.grid[i][j] = 1
 
     def create_sprites(self):
@@ -747,19 +762,19 @@ class World(object):
         self.wall_list.draw(self.screen)
 
 
-class SLAM(object):
+class SLAM():
     """Contains all aspects of the SLAM algorithm (WIP).
 
     Handles calculations and drawing of the occupancy grid map. Creates fake odometry positioning.
 
     Attributes:
-        p_screen: The main pygame screen surface.
-        p_robot: The robot object.
+        _p_screen: The main pygame screen surface.
+        _p_robot: The robot object.
     """
 
-    def __init__(self, p_screen, p_robot):
-        self.screen = p_screen
-        self.robot = p_robot
+    def __init__(self, _p_screen, _p_robot):
+        self.screen = _p_screen
+        self.robot = _p_robot
 
         # Occupancy Grid Setup
         self.grid_size = 11
@@ -788,7 +803,7 @@ class SLAM(object):
             if len(self.odo_pos) > 1000:
                 self.odo_pos.pop(0)
             self.odo_pos.append([self.odo_x, self.odo_y])
-        except ValueError as e:
+        except ValueError:
             pass
 
     def occupancy_grid(self):
@@ -853,6 +868,7 @@ class SLAM(object):
                 pass
 
     def toggle_occupancy_grid(self):
+        """Toggle whether or not the occupancy grid is visualised."""
         if self.show_occupancy_grid:
             self.show_occupancy_grid = False
         else:
