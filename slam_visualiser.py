@@ -788,6 +788,13 @@ class SLAM():
         self.odo_error = 0.2
         self.odo_pos = []
 
+        # Monte Carlo Localization Setup
+        self.particle_count = 100
+        # self.particles = np.zeros((self.particle_count, 2))
+        self.particle_history = []
+
+        self.mcl()
+
     def update(self):
         """Update SLAM visuals."""
         if self.show_occupancy_grid:
@@ -886,6 +893,45 @@ class SLAM():
                 pygame.draw.rect(self.screen,
                                  (255 * _alpha, 255 * _alpha, 255 * _alpha),
                                  _rect)
+
+    def mcl(self):
+        # Current Xt = X^t = 0
+        _particles = []
+        # _particles = np.zeros((self.particle_count, 2))
+        # _particles = np.empty((1, 2))
+        _particles_resample = []  # np.zeros((self.particle_count, 2))
+        _pc = self.robot.robot.point_cloud
+
+        # for i in range(M):
+        #     xt[i] = motion_update(actuation_command_t, xt-1[i])
+        #     wt[i] = sensor_update(sensor_t, xt[i])
+        #     X^t = X^t + [xt[i], wt[i]]
+        for i in range(self.particle_count):
+            try:
+                _prev_pos = self.particle_history[len(
+                    self.particle_history) - 1][i][0]
+                _pos = _prev_pos
+            except IndexError:
+                _pos = [30, 30]
+            _weight = 1
+            # if i == 5 or i == 6:
+            #     _weight = 1
+            #     _pos = [5, 5]
+            _particles.append([_pos, _weight])
+        _particles = np.array(_particles)
+
+        # for i in range(M):
+        #     draw xt[i] from X^t with probability wt[i]
+        #     Xt = Xt + xt[i]
+        for i in range(self.particle_count):
+            _weights = np.delete(_particles, 0, axis=1).reshape(
+                1, self.particle_count)[0]
+            _weights = _weights / np.linalg.norm(_weights, ord=1)
+            _particles_resample.append(_particles[np.random.choice(
+                self.particle_count, p=_weights.tolist())][0])
+
+        # return Xt
+        self.particle_history.append(_particles_resample)
 
 
 def point_distance(x_1, x_2, y_1, y_2):
