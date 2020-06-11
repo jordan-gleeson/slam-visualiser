@@ -57,12 +57,11 @@ class Game():
             self.world.draw()
             self.slam.update()
             self.robot.update()
-            print("odo vel", self.robot.odo_velocity)
             self.slam.odometry(self.robot.odo_velocity)
             if self.robot.robot.new_sample:
                 self.slam.occupancy_grid()
                 self.robot.robot.new_sample = False
-
+                self.slam.mcl()
             _fps = self.font.render(str(int(self.clock.get_fps())),
                                     True,
                                     pygame.Color('green'))
@@ -800,6 +799,9 @@ class SLAM():
         """Update SLAM visuals."""
         if self.show_occupancy_grid:
             self.draw_grid()
+        for _points in self.particle_history:
+            for _point in _points:
+                pygame.draw.circle(self.screen, (255, 0, 255), np.array(_point).astype(int), 1)
 
     def odometry(self, _vel_vector):
         """Adds a random error to the positional data within a percentage tolerance."""
@@ -864,8 +866,8 @@ class SLAM():
                         _clear[0])] -= _rate_of_change
                     if self.grid[int(_clear[1])][int(_clear[0])] < 0:
                         self.grid[int(_clear[1])][int(_clear[0])] = 0
-                _grid_y = int(_coords[1] // self.grid_size)
-                _grid_x = int(_coords[0] // self.grid_size)
+                _grid_y = int(_coords[1] / self.grid_size)
+                _grid_x = int(_coords[0] / self.grid_size)
                 # Increase occupancy probability of the end-point
                 self.grid[_grid_y][_grid_x] += _rate_of_change
                 if self.grid[_grid_y][_grid_x] > 1:
@@ -906,19 +908,49 @@ class SLAM():
         #     wt[i] = sensor_update(sensor_t, xt[i])
         #     X^t = X^t + [xt[i], wt[i]]
         for i in range(self.particle_count):
+            _pos = [0, 0]
             try:
                 _prev_particles = self.particle_history[len(self.particle_history) - 1]
-                _prev_pos = _prev_particles[i][0]
-                _pos = _prev_pos
-            except IndexError:
-                _pos = [30, 30]
-            _weight = 1
+                _prev_pos = _prev_particles[i]
+                _x_vec = self.robot.odo_velocity[0]
+                _y_vec = self.robot.odo_velocity[1]
+                _pos[0] = _prev_pos[0] + np.random.normal(_x_vec, self.odo_error)
+                _pos[1] = _prev_pos[1] + np.random.normal(_y_vec, self.odo_error)
+            except IndexError as e:
+                # _pos = [self.odo_pos[0], self.odo_pos[1]]
+                # print(e)
+                _pos = [np.random.uniform(0, self.screen.get_width()),
+                        np.random.uniform(0, self.screen.get_height())]
+
+            _theoretical_max = self.robot.robot.sample_count
+            _total = 0
+            for _point in _pc:
+                _coords = [int(_point[0] * np.cos(_point[1]) + _pos[0]),  # Convert to cartesian
+                           int(_point[0] * np.sin(_point[1]) + _pos[1])]
+                # pygame.draw.circle(self.screen, (0, 255, 0), np.array(_coords).astype(int), 5)
+                # pygame.display.update()
+                # time.sleep(5)
+                # print(_coords)
+                # print("grid size", len(self.grid), len(self.grid[0]))
+                # y = int(_coords[1] / self.grid_size)
+                # x = int(_coords[0] / self.grid_size)
+                # print("grid pos", y, x)
+                try:
+                    _add = self.grid[int(_coords[1] / self.grid_size)][int(_coords[0] / self.grid_size)]
+                    # print("add", _add)
+                    _total += _add# self.grid[int(_coords[1] / self.grid_size)][int(_coords[0] / self.grid_size)]
+                except IndexError:
+                    pass
+            # print(_total, "/", _theoretical_max)
+            _weight = _total / _theoretical_max
+
             # if i == 5 or i == 6:
             #     _weight = 1
             #     _pos = [5, 5]
             _particles.append([_pos, _weight])
         _particles = np.array(_particles)
-
+        print(_particles)
+        # time.sleep(1)
         # for i in range(M):
         #     draw xt[i] from X^t with probability wt[i]
         #     Xt = Xt + xt[i]
