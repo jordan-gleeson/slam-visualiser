@@ -57,6 +57,7 @@ class Game():
             self.world.draw()
             self.slam.update()
             self.robot.update()
+            print("odo vel", self.robot.odo_velocity)
             self.slam.odometry(self.robot.odo_velocity)
             if self.robot.robot.new_sample:
                 self.slam.occupancy_grid()
@@ -803,10 +804,8 @@ class SLAM():
     def odometry(self, _vel_vector):
         """Adds a random error to the positional data within a percentage tolerance."""
         try:
-            self.odo_x += random.uniform(_vel_vector[0] - _vel_vector[0] * self.odo_error,
-                                         _vel_vector[0] + _vel_vector[0] * self.odo_error)
-            self.odo_y += random.uniform(_vel_vector[1] - _vel_vector[1] * self.odo_error,
-                                         _vel_vector[1] + _vel_vector[1] * self.odo_error)
+            self.odo_x += np.random.normal(_vel_vector[0], np.abs(_vel_vector[0]) * self.odo_error)
+            self.odo_y += np.random.normal(_vel_vector[1], np.abs(_vel_vector[1]) * self.odo_error)
             if len(self.odo_pos) > 1000:
                 self.odo_pos.pop(0)
             self.odo_pos.append([self.odo_x, self.odo_y])
@@ -908,8 +907,8 @@ class SLAM():
         #     X^t = X^t + [xt[i], wt[i]]
         for i in range(self.particle_count):
             try:
-                _prev_pos = self.particle_history[len(
-                    self.particle_history) - 1][i][0]
+                _prev_particles = self.particle_history[len(self.particle_history) - 1]
+                _prev_pos = _prev_particles[i][0]
                 _pos = _prev_pos
             except IndexError:
                 _pos = [30, 30]
