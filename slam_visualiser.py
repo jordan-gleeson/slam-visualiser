@@ -4,6 +4,7 @@ import random
 import numpy as np
 import pygame
 import pygame_gui as pygui
+import fonts
 
 
 class Game():
@@ -38,6 +39,7 @@ class Game():
 
         self.font = pygame.font.Font(None, 30)
 
+        self.state = 0
         self.main()
 
     def main(self):
@@ -53,14 +55,19 @@ class Game():
                 if _event.type == pygame.USEREVENT:
                     self.gui.input(_event)
                 self.gui.manager.process_events(_event)
-            self.robot.change_velocity(pygame.key.get_pressed())
-            self.world.draw()
-            self.slam.update()
-            self.robot.update()
-            self.slam.odometry(self.robot.odo_velocity)
-            if self.robot.robot.new_sample:
-                self.slam.occupancy_grid()
-                self.robot.robot.new_sample = False
+            if self.state == 0:
+                if self.gui.main_menu_state == 0:
+                    self.state += 1
+                    self.gui.play_game()
+            if self.state == 1:
+                self.robot.change_velocity(pygame.key.get_pressed())
+                self.world.draw()
+                self.slam.update()
+                self.robot.update()
+                self.slam.odometry(self.robot.odo_velocity)
+                if self.robot.robot.new_sample:
+                    self.slam.occupancy_grid()
+                    self.robot.robot.new_sample = False
 
             _fps = self.font.render(str(int(self.clock.get_fps())),
                                     True,
@@ -89,16 +96,60 @@ class GUI():
         self.world = _p_world
         self.robot = _p_robot
         self.slam = _p_slam
-        self.manager = pygui.UIManager(self.screen.get_size())
+        self.manager = pygui.UIManager(self.screen.get_size(), 'theme.json')
         self.manager.set_visual_debug_mode(False)
 
         self.settings_window = None
+
+        # Main Menu Setup
+        self.main_menu_state = True
+        self.play_btn = None
+        self.world_edit_btn = None
+        self.slam_type_drp = None
+        self.lidar_chk = None
+        self.grid_chk = None
+        self.pos_chk = None
+        self.title = None
+        self.main_menu()
 
         # Button Setup
         self.toggle_lidar_btn = None
         self.toggle_occupancy_grid_btn = None
         self.toggle_positions_btn = None
         self.done_btn = None
+        self.settings_button = None
+
+        # Position Visualisation Setup
+        self.truth_pos = self.robot.truth_pos
+        self.odo_pos = self.slam.odo_pos
+        self.draw_positions = True
+
+    def main_menu(self):
+        _button_width = 110
+        _button_height = 40
+        _vert_padding = 50
+        _hor_padding = 20
+
+        _title_width = 290
+        _title_rect = pygame.Rect((self.screen.get_width() / 2 - _title_width / 2, _vert_padding),
+                                  (_title_width, 40))
+        self.title = pygui.elements.UILabel(_title_rect,
+                                            "SLAM Visualiser",
+                                            self.manager)
+
+        _world_edit_rect = pygame.Rect((self.screen.get_width() / 2 - _button_width / 2, _vert_padding*6),
+                                       (_button_width, _button_height))
+        self.world_edit_btn = pygui.elements.UIButton(relative_rect=_world_edit_rect,
+                                                      text="Edit World",
+                                                      manager=self.manager)
+
+        _play_rect = pygame.Rect((self.screen.get_width() / 2 - _button_width / 2, _vert_padding*12),
+                                 (_button_width, _button_height))
+        self.play_btn = pygui.elements.UIButton(relative_rect=_play_rect,
+                                                text="Play",
+                                                manager=self.manager)
+
+    def play_game(self):
         _settings_rect = pygame.Rect(
             (self.screen.get_size()[0] - 100, 20), (80, 30))
         self.settings_button = pygui.elements.UIButton(relative_rect=_settings_rect,
@@ -106,10 +157,9 @@ class GUI():
                                                        manager=self.manager,
                                                        container=self.settings_window)
 
-        # Position Visualisation Setup
-        self.truth_pos = self.robot.truth_pos
-        self.odo_pos = self.slam.odo_pos
-        self.draw_positions = True
+        self.world_edit_btn.kill()
+        self.play_btn.kill()
+        self.title.kill()
 
     def update(self, _time_delta):
         """Draws the GUI."""
@@ -130,6 +180,8 @@ class GUI():
                 self.toggle_positions()
             if _event.ui_element == self.done_btn:
                 self.settings_window.kill()
+            if _event.ui_element == self.play_btn:
+                self.main_menu_state = False
 
     def settings(self):
         """Settings window setup."""

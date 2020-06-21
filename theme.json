@@ -1,0 +1,17 @@
+{
+    "label":
+    {   
+        "colours":
+         {
+             "dark_bg": "#ffffff",
+             "normal_text": "#2e2e2e",
+             "text_shadow": "#505050"
+         },
+         "font":
+         {
+             "name": "Calibri",
+             "size": "45",
+             "regular_path": "fonts/calibri.tff"
+         }
+    }
+}
