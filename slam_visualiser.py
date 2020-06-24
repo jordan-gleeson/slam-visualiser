@@ -4,7 +4,7 @@ import random
 import numpy as np
 import pygame
 import pygame_gui as pygui
-import fonts
+import utils
 
 
 class Game():
@@ -45,6 +45,7 @@ class Game():
     def main(self):
         """Main game loop."""
         _playing_game = True
+        _world_edited = False
         while _playing_game:
             _time_delta = self.clock.tick(30) / 1000.0
             self.screen.blit(self.background, (0, 0))
@@ -55,11 +56,20 @@ class Game():
                 if _event.type == pygame.USEREVENT:
                     self.gui.input(_event)
                 self.gui.manager.process_events(_event)
+
+            # Main Menu
             if self.state == 0:
                 if self.gui.main_menu_state == 0:
                     self.state += 1
-                    self.gui.play_game()
-            if self.state == 1:
+                    self.gui.play_game(_world_edited)
+                elif self.gui.main_menu_state == 2:
+                    self.state = 2
+                    _world_edited = True
+                    self.gui.kill_main_menu()
+                    self.gui.world_editor_setup()
+
+            # Simulation
+            elif self.state == 1:
                 self.robot.change_velocity(pygame.key.get_pressed())
                 self.world.draw()
                 self.slam.update()
@@ -68,6 +78,14 @@ class Game():
                 if self.robot.robot.new_sample:
                     self.slam.occupancy_grid()
                     self.robot.robot.new_sample = False
+
+            # World Editor
+            elif self.state == 2:
+                if self.gui.main_menu_state == 1:
+                    self.state = 0
+                    self.gui.main_menu()
+                    self.gui.kill_world_editor()
+                self.gui.world_editor(pygame.mouse.get_pressed()[0], pygame.mouse.get_pos())
 
             _fps = self.font.render(str(int(self.clock.get_fps())),
                                     True,
@@ -124,7 +142,13 @@ class GUI():
         self.odo_pos = self.slam.odo_pos
         self.draw_positions = True
 
+        # World Editor Setup
+        self.last_mouse_pos = None
+        self.we_done_btn = None
+        self.we_clear_btn = None
+
     def main_menu(self):
+        """Setup the main menu."""
         _button_width = 110
         _button_height = 40
         _vert_padding = 50
@@ -149,7 +173,8 @@ class GUI():
                                                 text="Play",
                                                 manager=self.manager)
 
-    def play_game(self):
+    def play_game(self, _world_edited):
+        """Add game buttons. Write the world map to sprites."""
         _settings_rect = pygame.Rect(
             (self.screen.get_size()[0] - 100, 20), (80, 30))
         self.settings_button = pygui.elements.UIButton(relative_rect=_settings_rect,
@@ -157,9 +182,28 @@ class GUI():
                                                        manager=self.manager,
                                                        container=self.settings_window)
 
-        self.world_edit_btn.kill()
-        self.play_btn.kill()
-        self.title.kill()
+        self.kill_main_menu()
+
+        if not _world_edited:
+            self.world.write_map()
+        self.world.create_sprites()
+
+    def kill_main_menu(self):
+        """Removes main menu buttons."""
+        try:
+            self.world_edit_btn.kill()
+            self.play_btn.kill()
+            self.title.kill()
+        except:
+            pass
+
+    def kill_world_editor(self):
+        """Removes world editor buttons."""
+        try:
+            self.we_done_btn.kill()
+            self.we_clear_btn.kill()
+        except:
+            pass
 
     def update(self, _time_delta):
         """Draws the GUI."""
@@ -181,7 +225,13 @@ class GUI():
             if _event.ui_element == self.done_btn:
                 self.settings_window.kill()
             if _event.ui_element == self.play_btn:
-                self.main_menu_state = False
+                self.main_menu_state = 0
+            if _event.ui_element == self.world_edit_btn:
+                self.main_menu_state = 2
+            if _event.ui_element == self.we_done_btn:
+                self.main_menu_state = 1
+            if _event.ui_element == self.we_clear_btn:
+                self.world.clear_map()
 
     def settings(self):
         """Settings window setup."""
@@ -242,6 +292,44 @@ class GUI():
             self.draw_positions = False
         else:
             self.draw_positions = True
+
+    def world_editor_setup(self):
+        """Setup the world editor screen."""
+        _button_width = 110
+        _button_height = 40
+        _vert_padding = 20
+        _hor_padding = 20
+
+        _done_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding, 
+                                  self.screen.get_height() - _button_height - _vert_padding),
+                                 (_button_width, _button_height))
+        self.we_done_btn = pygui.elements.UIButton(relative_rect=_done_rect,
+                                                   text="Done",
+                                                   manager=self.manager)
+
+        _clear_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding, 
+                                  _vert_padding),
+                                 (_button_width, _button_height))
+        self.we_clear_btn = pygui.elements.UIButton(relative_rect=_clear_rect,
+                                                   text="Clear",
+                                                   manager=self.manager)
+        
+    def world_editor(self, _mouse_click, _pos):
+        """Draw onto the world grid if mouse is down and draw the current world grid."""
+        if _mouse_click:
+            if self.last_mouse_pos != None:
+                _line = utils.line_between(self.last_mouse_pos[0], self.last_mouse_pos[1], _pos[0], _pos[1])
+            for _point in _line:
+                _grid_x = int(_point[0] / self.world.size)
+                _grid_y = int(_point[1] / self.world.size)
+                self.world.write_to_map(1, _grid_x, _grid_y)
+        self.last_mouse_pos = _pos
+
+        for i in range(len(self.world.grid)):
+            for j in range(len(self.world.grid[0])):
+                if self.world.grid[i][j]:
+                    pygame.draw.rect(self.screen, (0, 0, 0), pygame.Rect((j * self.world.size, i * self.world.size), (self.world.size, self.world.size)))
+
 
 
 class Robot(pygame.sprite.Sprite):
@@ -782,8 +870,6 @@ class World():
         self.grid = [[0 for _ in range(self.screen.get_size()[0] // self.size)]
                      for __ in range(self.screen.get_size()[1] // self.size)]
         self.wall_list = pygame.sprite.Group()
-        self.write_map()
-        self.create_sprites()
 
     def write_map(self):
         """Draws the world map into an array of 1s and 0s."""
@@ -808,6 +894,16 @@ class World():
                                      self.size,
                                      self.size)
                     self.wall_list.add(wall_rect)
+
+    def clear_map(self):
+        self.grid = [[0 for _ in range(self.screen.get_size()[0] // self.size)]
+                     for __ in range(self.screen.get_size()[1] // self.size)]
+
+    def write_to_map(self, _mode, _x, _y):
+        if _mode:
+            self.grid[_y][_x] = 1
+        else:
+            self.grid[_y][_x] = 0
 
     def draw(self):
         """Draw the world map."""
@@ -865,34 +961,6 @@ class SLAM():
         grid being occupied if it is found on a line between the robot and a point, and increases
         the probability if it is found at the end-point of the laser.
         """
-        def line(_x, _y, _a, _b):
-            """Bresenham's line algorithm that returns a list of points."""
-            _points_in_line = []
-            _dx = abs(_a - _x)
-            _dy = abs(_b - _y)
-            _nx, _ny = _x, _y
-            _sx = -1 if _x > _a else 1
-            _sy = -1 if _y > _b else 1
-            if _dx > _dy:
-                _err = _dx / 2.0
-                while _nx != _a:
-                    _points_in_line.append((_nx, _ny))
-                    _err -= _dy
-                    if _err < 0:
-                        _ny += _sy
-                        _err += _dx
-                    _nx += _sx
-            else:
-                _err = _dy / 2.0
-                while _ny != _b:
-                    _points_in_line.append((_nx, _ny))
-                    _err -= _dx
-                    if _err < 0:
-                        _nx += _sx
-                        _err += _dy
-                    _ny += _sy
-            _points_in_line.append((_nx, _ny))
-            return _points_in_line
 
         _rate_of_change = 0.05  # The rate at which the probability of a point is changed
         _pc = self.robot.robot.point_cloud
@@ -901,7 +969,7 @@ class SLAM():
                 _coords = [int(_point[0] * np.cos(_point[1]) + self.odo_x),  # Convert to cartesian
                            int(_point[0] * np.sin(_point[1]) + self.odo_y)]
                 # Loop through the points in between the robot and the end-point of a laser
-                for _clear in line(self.robot.robot.x_pos // self.grid_size,
+                for _clear in utils.line_between(self.robot.robot.x_pos // self.grid_size,
                                    self.robot.robot.y_pos // self.grid_size,
                                    _coords[0] // self.grid_size,
                                    _coords[1] // self.grid_size)[:-1]:
