@@ -1,3 +1,5 @@
+import numpy as np
+
 def line_between(_x, _y, _a, _b):
             """Bresenham's line algorithm that returns a list of points."""
             _points_in_line = []
@@ -26,3 +28,7 @@ def line_between(_x, _y, _a, _b):
                     _ny += _sy
             _points_in_line.append((_nx, _ny))
             return _points_in_line
+
+def point_distance(x_1, x_2, y_1, y_2):
+    """Find the distance between two points on a 2D plane."""
+    return np.sqrt(np.square(x_1 - x_2) + np.square(y_1 - y_2))

@@ -55,6 +55,8 @@ class Game():
                     break
                 if _event.type == pygame.USEREVENT:
                     self.gui.input(_event)
+                if _event.type == pygame.MOUSEBUTTONUP:
+                    self.gui.last_mouse_pos = None
                 self.gui.manager.process_events(_event)
 
             # Main Menu
@@ -85,7 +87,8 @@ class Game():
                     self.state = 0
                     self.gui.main_menu()
                     self.gui.kill_world_editor()
-                self.gui.world_editor(pygame.mouse.get_pressed()[0], pygame.mouse.get_pos())
+                self.gui.world_editor(pygame.mouse.get_pressed()[0],
+                                      pygame.mouse.get_pos())
 
             _fps = self.font.render(str(int(self.clock.get_fps())),
                                     True,
@@ -305,21 +308,21 @@ class GUI():
         _vert_padding = 20
         _hor_padding = 20
 
-        _done_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding, 
+        _done_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding,
                                   self.screen.get_height() - _button_height - _vert_padding),
                                  (_button_width, _button_height))
         self.we_done_btn = pygui.elements.UIButton(relative_rect=_done_rect,
                                                    text="Done",
                                                    manager=self.manager)
 
-        _clear_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding, 
-                                  _vert_padding),
-                                 (_button_width, _button_height))
+        _clear_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding,
+                                   _vert_padding),
+                                  (_button_width, _button_height))
         self.we_clear_btn = pygui.elements.UIButton(relative_rect=_clear_rect,
-                                                   text="Clear",
-                                                   manager=self.manager)
+                                                    text="Clear",
+                                                    manager=self.manager)
 
-        _mode_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding, 
+        _mode_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding,
                                   _vert_padding * 2 + _button_height),
                                  (_button_width, _button_height))
         self.we_mode_btn = pygui.elements.UIButton(relative_rect=_mode_rect,
@@ -334,26 +337,60 @@ class GUI():
         else:
             self.we_mode_btn.set_text("Erase")
             self.we_draw_mode = True
-        
+
     def world_editor(self, _mouse_click, _pos):
         """Draw onto the world grid if mouse is down and draw the current world grid."""
-        # TODO: Don't draw when button clicked.
+
+        def world_editor_button_hover(_pos):
+            """Return true if the position is within any of the world editor buttons."""
+            _return = np.array([self.we_clear_btn.hover_point(_pos[0], _pos[1]),
+                                self.we_done_btn.hover_point(_pos[0], _pos[1]),
+                                self.we_mode_btn.hover_point(_pos[0], _pos[1])])
+            return _return.any()
+
+        def world_editor_centre_hover(_pos):
+            """Return true if the position is within where the robot will spawn."""
+            _hor_cen = self.screen.get_width() / 2
+            _vert_cen = self.screen.get_height() / 2
+            _robot_size = self.robot.robot.robot_size
+            _return = np.array([_pos[0] > _hor_cen - _robot_size,
+                                _pos[0] < _hor_cen + _robot_size,
+                                _pos[1] < _vert_cen + _robot_size,
+                                _pos[1] > _vert_cen - _robot_size])
+            return _return.all()
+
         if _mouse_click:
+            # Find the distance between the last known mouse position and find the
+            # points in a line between them
             if self.last_mouse_pos != None:
-                _line = utils.line_between(self.last_mouse_pos[0], self.last_mouse_pos[1], _pos[0], _pos[1])
+                _last_point_dis = utils.point_distance(self.last_mouse_pos[0], _pos[0],
+                                                       _pos[1], self.last_mouse_pos[1])
             else:
-                _line = _pos
+                _last_point_dis = 0
+            # If clicking on a button don't draw anything
+            if (_last_point_dis < 8 and world_editor_button_hover(_pos)) or _last_point_dis == 0:
+                _line = []
+            else:
+                _line = utils.line_between(self.last_mouse_pos[0],
+                                           self.last_mouse_pos[1],
+                                           _pos[0], _pos[1])
+            # Write to the grid map all the points on the line if not in the robot's spawn space
             for _point in _line:
-                _grid_x = int(_point[0] / self.world.size)
-                _grid_y = int(_point[1] / self.world.size)
-                self.world.write_to_map(self.we_draw_mode, _grid_x, _grid_y)
-        self.last_mouse_pos = _pos
+                if not world_editor_centre_hover(_point):
+                    _grid_x = int(_point[0] / self.world.size)
+                    _grid_y = int(_point[1] / self.world.size)
+                    self.world.write_to_map(self.we_draw_mode,
+                                            _grid_x,
+                                            _grid_y)
+            self.last_mouse_pos = _pos
 
         for i in range(len(self.world.grid)):
             for j in range(len(self.world.grid[0])):
                 if self.world.grid[i][j]:
-                    pygame.draw.rect(self.screen, (0, 0, 0), pygame.Rect((j * self.world.size, i * self.world.size), (self.world.size, self.world.size)))
-
+                    pygame.draw.rect(self.screen,
+                                     (0, 0, 0),
+                                     pygame.Rect((j * self.world.size, i * self.world.size),
+                                                 (self.world.size, self.world.size)))
 
 
 class Robot(pygame.sprite.Sprite):
@@ -373,7 +410,9 @@ class Robot(pygame.sprite.Sprite):
         self.screen = _p_screen
         self.world = _p_world
         self.image = pygame.image.load("roomba.png")
-        self.image = pygame.transform.smoothscale(self.image, (50, 50))
+        self.robot_size = 50
+        self.image = pygame.transform.smoothscale(self.image,
+                                                  (self.robot_size, self.robot_size))
         self.image_size = self.image.get_size()
         self.og_image = self.image.copy()
         self.rect = self.image.get_rect()
@@ -506,10 +545,10 @@ class Robot(pygame.sprite.Sprite):
                 _closest_wall = None
                 _closest_distance = self.initial_laser_length
                 for _wall in _collision_list[_laser]:
-                    cur_distance = point_distance(self.x_pos,
-                                                  _wall.rect.center[0],
-                                                  self.y_pos,
-                                                  _wall.rect.center[1])
+                    cur_distance = utils.point_distance(self.x_pos,
+                                                        _wall.rect.center[0],
+                                                        self.y_pos,
+                                                        _wall.rect.center[1])
                     if cur_distance < _closest_distance:
                         _closest_wall = _wall
                         _closest_distance = cur_distance
@@ -740,10 +779,10 @@ class RobotControl():
             _closest_distance = self.robot.initial_laser_length
             _closest_wall = None
             for _wall in _collision_list:
-                cur_distance = point_distance(self.robot.x_pos,
-                                              _wall.rect.center[0],
-                                              self.robot.y_pos,
-                                              _wall.rect.center[1])
+                cur_distance = utils.point_distance(self.robot.x_pos,
+                                                    _wall.rect.center[0],
+                                                    self.robot.y_pos,
+                                                    _wall.rect.center[1])
                 if cur_distance < _closest_distance:
                     s_closest_wall = _closest_wall
                     _closest_wall = _wall
@@ -759,10 +798,10 @@ class RobotControl():
             _closest_side = -1
             _closest_side_distance = self.robot.initial_laser_length
             for _i, _side in enumerate(_sides):
-                distance = point_distance(_side[0],
-                                          _wall.rect.center[0],
-                                          _side[1],
-                                          _wall.rect.center[1])
+                distance = utils.point_distance(_side[0],
+                                                _wall.rect.center[0],
+                                                _side[1],
+                                                _wall.rect.center[1])
                 if distance < _closest_side_distance:
                     _closest_side_distance = distance
                     _closest_side = _i
@@ -995,9 +1034,9 @@ class SLAM():
                            int(_point[0] * np.sin(_point[1]) + self.odo_y)]
                 # Loop through the points in between the robot and the end-point of a laser
                 for _clear in utils.line_between(self.robot.robot.x_pos // self.grid_size,
-                                   self.robot.robot.y_pos // self.grid_size,
-                                   _coords[0] // self.grid_size,
-                                   _coords[1] // self.grid_size)[:-1]:
+                                                 self.robot.robot.y_pos // self.grid_size,
+                                                 _coords[0] // self.grid_size,
+                                                 _coords[1] // self.grid_size)[:-1]:
                     # Decrease occupancy probability
                     self.grid[int(_clear[1])][int(
                         _clear[0])] -= _rate_of_change
@@ -1031,11 +1070,6 @@ class SLAM():
                 pygame.draw.rect(self.screen,
                                  (255 * _alpha, 255 * _alpha, 255 * _alpha),
                                  _rect)
-
-
-def point_distance(x_1, x_2, y_1, y_2):
-    """Find the distance between two points on a 2D plane."""
-    return np.sqrt(np.square(x_1 - x_2) + np.square(y_1 - y_2))
 
 
 if __name__ == '__main__':
