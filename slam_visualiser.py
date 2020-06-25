@@ -146,6 +146,8 @@ class GUI():
         self.last_mouse_pos = None
         self.we_done_btn = None
         self.we_clear_btn = None
+        self.we_mode_btn = None
+        self.we_draw_mode = True
 
     def main_menu(self):
         """Setup the main menu."""
@@ -202,6 +204,7 @@ class GUI():
         try:
             self.we_done_btn.kill()
             self.we_clear_btn.kill()
+            self.we_mode_btn.kill()
         except:
             pass
 
@@ -232,6 +235,8 @@ class GUI():
                 self.main_menu_state = 1
             if _event.ui_element == self.we_clear_btn:
                 self.world.clear_map()
+            if _event.ui_element == self.we_mode_btn:
+                self.world_editor_mode_button()
 
     def settings(self):
         """Settings window setup."""
@@ -313,16 +318,35 @@ class GUI():
         self.we_clear_btn = pygui.elements.UIButton(relative_rect=_clear_rect,
                                                    text="Clear",
                                                    manager=self.manager)
+
+        _mode_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding, 
+                                  _vert_padding * 2 + _button_height),
+                                 (_button_width, _button_height))
+        self.we_mode_btn = pygui.elements.UIButton(relative_rect=_mode_rect,
+                                                   text="Erase",
+                                                   manager=self.manager)
+
+    def world_editor_mode_button(self):
+        """Toggle between draw/erase modes of the world editor."""
+        if self.we_draw_mode:
+            self.we_mode_btn.set_text("Draw")
+            self.we_draw_mode = False
+        else:
+            self.we_mode_btn.set_text("Erase")
+            self.we_draw_mode = True
         
     def world_editor(self, _mouse_click, _pos):
         """Draw onto the world grid if mouse is down and draw the current world grid."""
+        # TODO: Don't draw when button clicked.
         if _mouse_click:
             if self.last_mouse_pos != None:
                 _line = utils.line_between(self.last_mouse_pos[0], self.last_mouse_pos[1], _pos[0], _pos[1])
+            else:
+                _line = _pos
             for _point in _line:
                 _grid_x = int(_point[0] / self.world.size)
                 _grid_y = int(_point[1] / self.world.size)
-                self.world.write_to_map(1, _grid_x, _grid_y)
+                self.world.write_to_map(self.we_draw_mode, _grid_x, _grid_y)
         self.last_mouse_pos = _pos
 
         for i in range(len(self.world.grid)):
@@ -427,6 +451,7 @@ class Robot(pygame.sprite.Sprite):
         to the robot.
         """
         # TODO: Fix flickering on some diagonal lasers
+        # TODO: Make lasers that don't find a result return max length instead of previous result
         _iterations_per_frame = int(
             self.sample_count / (30 / self.sample_rate))
         _slice_from = self.lidar_state * _iterations_per_frame
