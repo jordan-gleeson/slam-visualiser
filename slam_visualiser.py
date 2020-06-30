@@ -57,6 +57,9 @@ class Game():
                     self.gui.input(_event)
                 if _event.type == pygame.MOUSEBUTTONUP:
                     self.gui.last_mouse_pos = None
+                if _event.type == pygame.KEYDOWN:
+                    if _event.key == pygame.K_r:
+                        self.gui.reset()
                 self.gui.manager.process_events(_event)
 
             # Main Menu
@@ -133,16 +136,15 @@ class GUI():
         self.title = None
         self.main_menu()
 
-        # Button Setup
+        # Settings Button Setup
         self.toggle_lidar_btn = None
         self.toggle_occupancy_grid_btn = None
         self.toggle_positions_btn = None
         self.done_btn = None
         self.settings_button = None
+        self.reset_btn = None
 
         # Position Visualisation Setup
-        self.truth_pos = self.robot.truth_pos
-        self.odo_pos = self.slam.odo_pos
         self.draw_positions = True
 
         # World Editor Setup
@@ -240,6 +242,8 @@ class GUI():
                 self.world.clear_map()
             if _event.ui_element == self.we_mode_btn:
                 self.world_editor_mode_button()
+            if _event.ui_element == self.reset_btn:
+                self.reset()
 
     def settings(self):
         """Settings window setup."""
@@ -253,7 +257,7 @@ class GUI():
         # TODO: Fix window sizing to use above calculations
         _settings_window_rect = pygame.Rect(((self.screen.get_size()[0] / 2) - (180 / 2),
                                              self.screen.get_size()[1] / 4 - 300 / 2),
-                                            (180, 300))
+                                            (180, 350))
         self.settings_window = pygui.elements.UIWindow(rect=_settings_window_rect,
                                                        manager=self.manager)
 
@@ -276,7 +280,13 @@ class GUI():
                                                             text="Toggle Pos",
                                                             manager=self.manager,
                                                             container=self.settings_window)
-        _done_rect = pygame.Rect((_hor_padding, _vert_padding * 4 + _button_height * 3),
+        _reset_rect = pygame.Rect((_hor_padding, _vert_padding * 4 + _button_height * 3),
+                                  (_button_width, _button_height))
+        self.reset_btn = pygui.elements.UIButton(relative_rect=_reset_rect,
+                                                 text="Reset",
+                                                 manager=self.manager,
+                                                 container=self.settings_window)
+        _done_rect = pygame.Rect((_hor_padding, _vert_padding * 5 + _button_height * 4),
                                  (_button_width, _button_height))
         self.done_btn = pygui.elements.UIButton(relative_rect=_done_rect,
                                                 text="Done",
@@ -288,9 +298,9 @@ class GUI():
         if self.draw_positions:
             try:
                 pygame.draw.lines(self.screen, (255, 0, 0),
-                                  False, self.truth_pos)
+                                  False, self.robot.truth_pos)
                 pygame.draw.lines(self.screen, (0, 0, 255),
-                                  False, self.odo_pos)
+                                  False, self.slam.odo_pos)
             except ValueError:
                 pass
 
@@ -392,6 +402,11 @@ class GUI():
                                      pygame.Rect((j * self.world.size, i * self.world.size),
                                                  (self.world.size, self.world.size)))
 
+    def reset(self):
+        """Reset the game state."""
+        self.robot.reset()
+        self.slam.reset()
+
 
 class Robot(pygame.sprite.Sprite):
     """Sprite  the robot player object.
@@ -449,6 +464,18 @@ class Robot(pygame.sprite.Sprite):
             _laser_sprite = Laser(self.screen, _lidar, _laser)
             self.lasers.add(_laser_sprite)
         self.lasers_draw = pygame.sprite.Group()
+
+    def reset(self):
+        """Reset the robots position and sensor data."""
+        self.x_pos = float(self.screen.get_size()[0] / 2)
+        self.y_pos = float(self.screen.get_size()[1] / 2)
+        self.angle = 0
+        self.rect.center = (self.x_pos, self.y_pos)
+        self.hitbox = pygame.Rect(self.x_pos - (self.image_size[0] / 2),
+                                  self.y_pos - (self.image_size[1] / 2),
+                                  self.image_size[0] + 2,
+                                  self.image_size[1] + 2)
+        self.point_cloud = [[0, 0] for _ in range(self.sample_count)]
 
     def update(self):
         """Updates the position of the robot's rect, hitbox and mask."""
@@ -619,7 +646,10 @@ class RobotControl():
         self.robot.y_pos = self.screen.get_size()[1] / 2
         self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
         self.velocity = [0, 0, 0]
+        self.odo_velocity = self.velocity
         self.robot.angle = 0
+        self.truth_pos = []
+        self.robot.reset()
         self.update()
 
     def update(self):
@@ -694,8 +724,6 @@ class RobotControl():
         """
         # Get input and sets the rotation according to the angular velocity.
         _pressed_keys = self.convert_key(_keys)
-        if "R" in _pressed_keys:
-            self.reset()
         if "RIGHT" in _pressed_keys:
             self.robot.angle -= self.angular_velocity
         if "LEFT" in _pressed_keys:
@@ -998,6 +1026,14 @@ class SLAM():
         self.odo_x = self.robot.robot.x_pos
         self.odo_y = self.robot.robot.y_pos
         self.odo_error = 0.2
+        self.odo_pos = []
+
+    def reset(self):
+        """Reset the SLAM state."""
+        self.grid = [[0.5 for _ in range(self.screen.get_size()[0] // self.grid_size)]
+                     for __ in range(self.screen.get_size()[1] // self.grid_size)]
+        self.odo_x = self.robot.robot.x_pos
+        self.odo_y = self.robot.robot.y_pos
         self.odo_pos = []
 
     def update(self):
