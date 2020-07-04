@@ -1,17 +1,97 @@
 {
-    "label":
+    "background_panel":
+     {
+         "colours":
+         {
+             "dark_bg":"#20243F"
+         },
+         "misc":
+         {
+             "border_width": "0",
+             "shadow_width": "0"
+         }
+     },
+    "title_label":
     {   
         "colours":
          {
-             "dark_bg": "#ffffff",
-             "normal_text": "#2e2e2e",
-             "text_shadow": "#505050"
+             "dark_bg": "#12A7AB",
+             "normal_text": "#ffffff"
          },
          "font":
          {
              "name": "Calibri",
-             "size": "45",
+             "size": "55",
              "regular_path": "fonts/calibri.tff"
          }
-    }
+    },
+    "panel_title_label":
+    {   
+        "colours":
+         {
+             "dark_bg": "#12A7AB",
+             "normal_text": "#ffffff"
+         },
+         "font":
+         {
+             "name": "Calibri",
+             "size": "42",
+             "regular_path": "fonts/calibri.tff"
+         }
+    },
+    "title_panel":
+     {
+         "colours":
+         {
+             "dark_bg":"#12A7AB"
+         },
+         "misc":
+         {
+             "shape": "rounded_rectangle",
+             "shape_corner_radius": "10",
+             "border_width": "0",
+             "shadow_width": "0"
+         }
+     },
+     "menu_panel":
+     {
+         "colours":
+         {
+             "dark_bg":"#394165"
+         },
+         "misc":
+         {
+             "shape": "rounded_rectangle",
+             "shape_corner_radius": "10",
+             "border_width": "0",
+             "shadow_width": "0"
+         }
+     },
+     "start_button":
+     {
+         "colours":
+         {
+             "normal_bg": "#e64c67",
+             "hovered_bg": "#AB3846",
+             "normal_text": "#FFFFFF",
+             "hovered_text": "#FFFFFF"
+         },
+         "font":
+         {
+            "name": "Calibri",
+            "size": "55",
+            "regular_path": "fonts/calibri.tff"
+         },
+         "misc":
+         {
+             "shape": "rounded_rectangle",
+             "shape_corner_radius": "10",
+             "border_width": "0",
+             "shadow_width": "0",
+             "text_horiz_alignment": "center",
+             "text_vert_alignment": "center",
+             "text_horiz_alignment_padding": "10",
+             "text_vert_alignment_padding": "5"
+         }
+     }
 }
