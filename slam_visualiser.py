@@ -130,18 +130,24 @@ class GUI():
 
         # Main Menu Setup
         self.main_menu_state = True
-        self.main_menu_pnl = None
-        self.start_btn = None
-        self.world_edit_btn = None
-        self.slam_type_drp = None
-        self.lidar_chk = None
-        self.grid_chk = None
-        self.pos_chk = None
-        self.title = None
-        self.title_pnl = None
-        self.setup_pnl = None
-        self.setup_lbl_pnl = None
-        self.setup_ttl = None
+        # self.main_menu_pnl = None
+        # self.start_btn = None
+        # self.world_edit_btn = None
+        # self.slam_type_drp = None
+        # self.lidar_chk = None
+        # self.grid_chk = None
+        # self.pos_chk = None
+        # self.title = None
+        # self.title_pnl = None
+        # self.setup_pnl = None
+        # self.setup_lbl_pnl = None
+        # self.setup_ttl = None
+        # self.preview_pnl = None
+        # self.instructions_pnl = None
+        # self.preview_ttl = None
+        # self.preview_lbl_pnl = None
+        # self.instructions_lbl_pnl = None
+        # self.instructions_ttl = None
         self.main_menu()
 
         # Settings Button Setup
@@ -190,7 +196,7 @@ class GUI():
 
         _title_size = (354, 45)
         _title_pos = (_title_panel_pos[0] + _hor_inner_padding,
-                      _title_panel_pos[1] + _title_panel_size[1] / 2 - _title_size[1] / 2)
+                      _title_panel_pos[1] + _title_panel_size[1] / 2 - _title_size[1] / 2 + 5)
         _title_rect = pygame.Rect(_title_pos, _title_size)
         self.title = pygui.elements.UILabel(_title_rect,
                                             "SLAM Visualiser",
@@ -218,19 +224,20 @@ class GUI():
 
         _setup_title_size = (98, 35)
         _setup_title_pos = (_setup_label_panel_pos[0] + _hor_inner_padding,
-                            _setup_label_panel_pos[1] + _setup_label_panel_size[1] / 2 - _setup_title_size[1] / 2)
+                            _setup_label_panel_pos[1] + _setup_label_panel_size[1] / 2 - _setup_title_size[1] / 2 + 3)
         _setup_title_rect = pygame.Rect(_setup_title_pos, _setup_title_size)
         self.setup_ttl = pygui.elements.UILabel(_setup_title_rect,
                                                 "Setup",
                                                 self.manager,
                                                 object_id="panel_title_label")
 
-        _world_edit_rect = pygame.Rect((self.screen.get_width() / 2 - _button_width / 2,
-                                        _vert_out_padding*6),
-                                       (_button_width, _button_height))
+        _world_edit_size = (_button_width, _button_height)
+        _world_edit_pos = (_setup_label_panel_pos[0], _setup_label_panel_pos[1] + _setup_label_panel_size[1] + _vert_inner_padding)
+        _world_edit_rect = pygame.Rect(_world_edit_pos, _world_edit_size)
         self.world_edit_btn = pygui.elements.UIButton(relative_rect=_world_edit_rect,
                                                       text="Edit World",
-                                                      manager=self.manager)
+                                                      manager=self.manager,
+                                                      object_id="setup_button")
 
         _start_button_pos = (_hor_out_padding,
                              _setup_panel_pos[1] + _setup_panel_size[1] + _vert_in_padding)
@@ -240,6 +247,62 @@ class GUI():
                                                  text="Start",
                                                  manager=self.manager,
                                                  object_id="start_button")
+
+        _preview_panel_pos = (_setup_panel_pos[0] + _setup_panel_size[0] + _hor_in_padding,
+                              _setup_panel_pos[1])
+        _preview_panel_size = (_setup_panel_size[0] * 2 + _hor_in_padding / 2,
+                               (_start_button_pos[1] + _start_button_height - _setup_panel_pos[1]) / 2 - _hor_in_padding / 2)
+        _preview_panel_rect = pygame.Rect(_preview_panel_pos, _preview_panel_size)
+        self.preview_pnl = pygui.elements.UIPanel(_preview_panel_rect, 0,
+                                                  manager=self.manager,
+                                                  object_id="menu_panel")
+
+        _instructions_panel_pos = (_preview_panel_pos[0], 
+                                   _preview_panel_pos[1] + _preview_panel_size[1] + _hor_in_padding)
+        _instructions_panel_size = _preview_panel_size
+        _instructions_panel_rect = pygame.Rect(_instructions_panel_pos, _instructions_panel_size)
+        self.instructions_pnl = pygui.elements.UIPanel(_instructions_panel_rect, 0,
+                                                       manager=self.manager,
+                                                       object_id="menu_panel")
+
+        _preview_label_panel_pos = (_preview_panel_pos[0] + _hor_inner_padding,
+                                  _preview_panel_pos[1] + _vert_inner_padding)
+        _preview_label_panel_size = (_preview_panel_size[0] - _hor_inner_padding * 2,
+                                   50)
+        _preview_label_panel_rect = pygame.Rect(_preview_label_panel_pos,
+                                              _preview_label_panel_size)
+        self.preview_lbl_pnl = pygui.elements.UIPanel(_preview_label_panel_rect, 0,
+                                                    manager=self.manager,
+                                                    object_id="title_panel")
+
+        _preview_title_size = (138, 35)
+        _preview_title_pos = (_preview_label_panel_pos[0] + _hor_inner_padding,
+                            _preview_label_panel_pos[1] + _preview_label_panel_size[1] / 2 - _preview_title_size[1] / 2 + 3)
+        _preview_title_rect = pygame.Rect(_preview_title_pos, _preview_title_size)
+        self.preview_ttl = pygui.elements.UILabel(_preview_title_rect,
+                                                "Preview",
+                                                self.manager,
+                                                object_id="panel_title_label")
+
+        _instructions_label_panel_pos = (_instructions_panel_pos[0] + _hor_inner_padding,
+                                  _instructions_panel_pos[1] + _vert_inner_padding)
+        _instructions_label_panel_size = (_instructions_panel_size[0] - _hor_inner_padding * 2,
+                                   50)
+        _instructions_label_panel_rect = pygame.Rect(_instructions_label_panel_pos,
+                                              _instructions_label_panel_size)
+        self.instructions_lbl_pnl = pygui.elements.UIPanel(_instructions_label_panel_rect, 0,
+                                                    manager=self.manager,
+                                                    object_id="title_panel")
+
+        _instructions_title_size = (202, 35)
+        _instructions_title_pos = (_instructions_label_panel_pos[0] + _hor_inner_padding,
+                            _instructions_label_panel_pos[1] + _instructions_label_panel_size[1] / 2 - _instructions_title_size[1] / 2 + 3)
+        _instructions_title_rect = pygame.Rect(_instructions_title_pos, _instructions_title_size)
+        self.instructions_ttl = pygui.elements.UILabel(_instructions_title_rect,
+                                                "Instructions",
+                                                self.manager,
+                                                object_id="panel_title_label")
+
 
     def play_game(self, _world_edited):
         """Add game buttons. Write the world map to sprites."""
@@ -267,6 +330,12 @@ class GUI():
             self.setup_pnl.kill()
             self.setup_lbl_pnl.kill()
             self.setup_ttl.kill()
+            self.preview_pnl.kill()
+            self.instructions_pnl.kill()
+            self.preview_ttl.kill()
+            self.preview_lbl_pnl.kill()
+            self.instructions_lbl_pnl.kill()
+            self.instructions_ttl.kill()
         except:
             pass
 

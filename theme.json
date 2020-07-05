@@ -93,5 +93,30 @@
              "text_horiz_alignment_padding": "10",
              "text_vert_alignment_padding": "5"
          }
+     },
+     "setup_button":
+     {
+         "colours":
+         {
+             "normal_bg": "#FCB04D",
+             "hovered_bg": "#CE7910",
+             "normal_text": "#20243F",
+             "hovered_text": "#20243F"
+         },
+         "font":
+         {
+            "name": "Calibri",
+            "size": "20",
+            "regular_path": "fonts/calibri.tff"
+         },
+         "misc":
+         {
+             "shape": "rounded_rectangle",
+             "shape_corner_radius": "5",
+             "border_width": "0",
+             "shadow_width": "0",
+             "text_horiz_alignment": "center",
+             "text_vert_alignment": "center"
+         }
      }
 }
