@@ -118,5 +118,63 @@
              "text_horiz_alignment": "center",
              "text_vert_alignment": "center"
          }
-     }
+     },
+     "settings_window":
+     {
+         "colours":
+         {
+             "dark_bg":"#394165",
+             "normal_border": "#20243F"
+         },
+
+         "misc":
+         {
+             "shape": "rounded_rectangle",
+             "shape_corner_radius": "5",
+             "border_width": "6",
+             "shadow_width": "0",
+             "enable_title_bar": "0"
+         }
+     },
+     "done_button":
+     {
+         "colours":
+         {
+             "normal_bg": "#e64c67",
+             "hovered_bg": "#AB3846",
+             "normal_text": "#FFFFFF",
+             "hovered_text": "#FFFFFF"
+         },
+         "font":
+         {
+            "name": "Calibri",
+            "size": "32",
+            "regular_path": "fonts/calibri.tff"
+         },
+         "misc":
+         {
+             "shape": "rounded_rectangle",
+             "shape_corner_radius": "10",
+             "border_width": "0",
+             "shadow_width": "0",
+             "text_horiz_alignment": "center",
+             "text_vert_alignment": "center",
+             "text_horiz_alignment_padding": "10",
+             "text_vert_alignment_padding": "5"
+         }
+     },
+     "settings_title_label":
+    {   
+        "colours":
+         {
+             "dark_bg": "#12A7AB",
+             "normal_text": "#ffffff"
+         },
+         "font":
+         {
+             "name": "Calibri",
+             "size": "25",
+             "regular_path": "fonts/calibri.tff"
+         }
+    }
 }
