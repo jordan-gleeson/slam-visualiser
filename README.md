@@ -8,9 +8,9 @@ Implemented:
     * World Map
     * Collisions
     * Lidar Visualisation
+    * World Editor
+    * GUI
 
 Coming:
 
-    * World Editor
-    * GUI
     * SLAM Implementations
