@@ -272,7 +272,7 @@ class GUI():
         _button_width = 110
         _button_height = 40
         _vert_padding = 15
-        _hor_padding = 20
+        _hor_padding = 30
         _button_count = 6
         _border = 4 * 1.5
 
