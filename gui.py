@@ -3,6 +3,7 @@ import pygame
 import pygame_gui as pygui
 import utils
 
+
 class GUI():
     """Contains all aspects of the GUI.
 
@@ -120,6 +121,19 @@ class GUI():
                                                       text="Edit World",
                                                       manager=self.manager,
                                                       object_id="setup_button")
+
+        # TODO: expansion_height_limit doesn't go past a certain limit
+        _slam_type_size = (_button_width + 60, _button_height)
+        _slam_type_pos = (_setup_label_panel_pos[0],
+                          _world_edit_pos[1] + _world_edit_size[1] + _vert_inner_padding)
+        _slam_type_rect = pygame.Rect(_slam_type_pos, _slam_type_size)
+        _slam_list = ["Option1", "Option2", "Option3"]
+        self.slam_type_drop = pygui.elements.UIDropDownMenu(relative_rect=_slam_type_rect,
+                                                            options_list=_slam_list,
+                                                            starting_option="Option1",
+                                                            manager=self.manager,
+                                                            object_id="setup_dropdown",
+                                                            expansion_height_limit=len(_slam_list)*50)
 
         _start_button_pos = (_hor_out_padding,
                              _setup_panel_pos[1] + _setup_panel_size[1] + _vert_in_padding)
@@ -396,7 +410,7 @@ class GUI():
         self.we_clear_btn = pygui.elements.UIButton(relative_rect=_clear_rect,
                                                     text="Clear",
                                                     manager=self.manager,
-                                                   object_id="setup_button")
+                                                    object_id="setup_button")
 
         _mode_rect = pygame.Rect((self.screen.get_width() - _button_width - _hor_padding,
                                   _vert_padding * 2 + _button_height),
