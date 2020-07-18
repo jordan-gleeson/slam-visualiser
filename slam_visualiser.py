@@ -76,6 +76,8 @@ class Game():
                     _world_edited = True
                     self.gui.kill_main_menu()
                     self.gui.world_editor_setup()
+                else:
+                    self.slam.world_type = self.gui.slam_type_drop.selected_option
 
             # Simulation
             elif self.state == 1:
@@ -714,6 +716,8 @@ class SLAM():
     def __init__(self, _p_screen, _p_robot):
         self.screen = _p_screen
         self.robot = _p_robot
+
+        self.world_type = "Occupancy Grid"
 
         # Occupancy Grid Setup
         self.grid_size = 11

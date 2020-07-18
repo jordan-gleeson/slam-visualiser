@@ -122,15 +122,14 @@ class GUI():
                                                       manager=self.manager,
                                                       object_id="setup_button")
 
-        # TODO: expansion_height_limit doesn't go past a certain limit
         _slam_type_size = (_button_width + 60, _button_height)
         _slam_type_pos = (_setup_label_panel_pos[0],
                           _world_edit_pos[1] + _world_edit_size[1] + _vert_inner_padding)
         _slam_type_rect = pygame.Rect(_slam_type_pos, _slam_type_size)
-        _slam_list = ["Option1", "Option2", "Option3"]
+        _slam_list = ["Occupancy Grid", "Landmarks"]
         self.slam_type_drop = pygui.elements.UIDropDownMenu(relative_rect=_slam_type_rect,
                                                             options_list=_slam_list,
-                                                            starting_option="Option1",
+                                                            starting_option="Occupancy Grid",
                                                             manager=self.manager,
                                                             object_id="setup_dropdown",
                                                             expansion_height_limit=len(_slam_list)*50)
@@ -237,6 +236,7 @@ class GUI():
             self.preview_lbl_pnl.kill()
             self.instructions_lbl_pnl.kill()
             self.instructions_ttl.kill()
+            self.slam_type_drop.kill()
         except:
             pass
 
