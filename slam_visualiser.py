@@ -662,19 +662,29 @@ class World():
         self.size = 20
         self.grid = [[0 for _ in range(self.screen.get_size()[0] // self.size)]
                      for __ in range(self.screen.get_size()[1] // self.size)]
+        print(len(self.grid))
         self.wall_list = pygame.sprite.Group()
 
-    def write_map(self):
+    def write_map(self, _world_type):
         """Draws the world map into an array of 1s and 0s."""
-        for i, _ in enumerate(self.grid):
-            for j, __ in enumerate(self.grid[0]):
-                if i == 0 or i == len(self.grid) - 1 or j == 0 or j == len(self.grid[0]) - 1:
-                    self.grid[i][j] = 1
-                else:
-                    self.grid[i][j] = 0
-                if 20 < i < 30:
-                    if 20 < j < 30:
+        if _world_type == "Occupancy Grid":
+            for i, _ in enumerate(self.grid):
+                for j, __ in enumerate(self.grid[0]):
+                    if i == 0 or i == len(self.grid) - 1 or j == 0 or j == len(self.grid[0]) - 1:
                         self.grid[i][j] = 1
+                    else:
+                        self.grid[i][j] = 0
+                    if 20 < i < 30:
+                        if 20 < j < 30:
+                            self.grid[i][j] = 1
+        elif _world_type == "Landmarks":
+            _landmark_count = 10
+            _landmark_list = []
+            for i in range(_landmark_count):
+                _landmark_list.append([random.randrange(0, len(self.grid)), 
+                                       random.randrange(0, len(self.grid[0]))])
+            for _point in _landmark_list:
+                self.grid[_point[0]][_point[1]] = 1
 
     def create_sprites(self):
         """Add sprites in the positions indicated by the self.grid array to a sprite group."""
