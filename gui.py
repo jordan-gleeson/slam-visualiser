@@ -203,7 +203,7 @@ class GUI():
                                                        self.manager,
                                                        object_id="panel_title_label")
 
-    def play_game(self, _world_edited):
+    def setup_game(self, _world_edited):
         """Add game buttons. Write the world map to sprites."""
         _settings_rect_size = (80, 30)
         _settings_rect = pygame.Rect((self.screen.get_size()[0] - 10 - _settings_rect_size[0], 10),
@@ -217,7 +217,7 @@ class GUI():
         self.kill_main_menu()
 
         if not _world_edited:
-            self.world.write_map(self.slam.world_type)
+            self.world.write_map(self.world.world_type)
         self.world.create_sprites()
 
     def kill_main_menu(self):
@@ -459,7 +459,7 @@ class GUI():
             return int(_pos / self.world.size)
 
         if _mouse_click:
-            if self.slam.world_type == "Occupancy Grid" or not self.we_draw_mode:
+            if self.world.world_type == "Occupancy Grid" or not self.we_draw_mode:
                 # If in Occupancy Grid mode, find the distance between the last known mouse
                 # position and find the points in a line between them
                 if self.last_mouse_pos != None:
@@ -481,7 +481,7 @@ class GUI():
                                                 pos_to_grid(_point[0]),
                                                 pos_to_grid(_point[1]))
                 self.last_mouse_pos = _pos
-            elif self.slam.world_type == "Landmarks":
+            elif self.world.world_type == "Landmarks":
                 # If in landmark mode, only place one wall per click
                 if self.we_raise_click:
                     if not world_editor_centre_hover(_pos):

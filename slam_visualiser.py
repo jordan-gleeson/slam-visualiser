@@ -71,14 +71,14 @@ class Game():
             if self.state == 0:
                 if self.gui.main_menu_state == 0:
                     self.state += 1
-                    self.gui.play_game(_world_edited)
+                    self.gui.setup_game(_world_edited)
                 elif self.gui.main_menu_state == 2:
                     self.state = 2
                     _world_edited = True
                     self.gui.kill_main_menu()
                     self.gui.world_editor_setup()
                 else:
-                    self.slam.world_type = self.gui.slam_type_drop.selected_option
+                    self.world.world_type = self.gui.slam_type_drop.selected_option
 
             # Simulation
             elif self.state == 1:
@@ -663,12 +663,12 @@ class World():
         self.size = 20
         self.grid = [[0 for _ in range(self.screen.get_size()[0] // self.size)]
                      for __ in range(self.screen.get_size()[1] // self.size)]
-        print(len(self.grid))
         self.wall_list = pygame.sprite.Group()
+        self.world_type = "Occupancy Grid"
 
-    def write_map(self, _world_type):
+    def write_map(self):
         """Draws the world map into an array of 1s and 0s."""
-        if _world_type == "Occupancy Grid":
+        if self.world_type == "Occupancy Grid":
             for i, _ in enumerate(self.grid):
                 for j, __ in enumerate(self.grid[0]):
                     if i == 0 or i == len(self.grid) - 1 or j == 0 or j == len(self.grid[0]) - 1:
@@ -678,7 +678,7 @@ class World():
                     if 20 < i < 30:
                         if 20 < j < 30:
                             self.grid[i][j] = 1
-        elif _world_type == "Landmarks":
+        elif self.world_type == "Landmarks":
             _landmark_count = 10
             _landmark_list = []
             for i in range(_landmark_count):
@@ -727,8 +727,6 @@ class SLAM():
     def __init__(self, _p_screen, _p_robot):
         self.screen = _p_screen
         self.robot = _p_robot
-
-        self.world_type = "Occupancy Grid"
 
         # Occupancy Grid Setup
         self.grid_size = 11
