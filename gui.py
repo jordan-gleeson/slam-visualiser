@@ -49,6 +49,7 @@ class GUI():
         self.we_clear_btn = None
         self.we_mode_btn = None
         self.we_draw_mode = True
+        self.we_raise_click = False
 
     def main_menu(self):
         """Setup the main menu."""
@@ -432,48 +433,62 @@ class GUI():
     def world_editor(self, _mouse_click, _pos):
         """Draw onto the world grid if mouse is down and draw the current world grid."""
 
-        def world_editor_button_hover(_pos):
+        def world_editor_button_hover(_bh_pos):
             """Return true if the position is within any of the world editor buttons."""
-            _return = np.array([self.we_clear_btn.hover_point(_pos[0], _pos[1]),
-                                self.we_done_btn.hover_point(_pos[0], _pos[1]),
-                                self.we_mode_btn.hover_point(_pos[0], _pos[1])])
+            _return = np.array([self.we_clear_btn.hover_point(_bh_pos[0],
+                                                              _bh_pos[1]),
+                                self.we_done_btn.hover_point(_bh_pos[0],
+                                                             _bh_pos[1]),
+                                self.we_mode_btn.hover_point(_bh_pos[0],
+                                                             _bh_pos[1])])
             return _return.any()
 
-        def world_editor_centre_hover(_pos):
+        def world_editor_centre_hover(_ch_pos):
             """Return true if the position is within where the robot will spawn."""
             _hor_cen = self.screen.get_width() / 2
             _vert_cen = self.screen.get_height() / 2
             _robot_size = self.robot.robot.robot_size
-            _return = np.array([_pos[0] > _hor_cen - _robot_size,
-                                _pos[0] < _hor_cen + _robot_size,
-                                _pos[1] < _vert_cen + _robot_size,
-                                _pos[1] > _vert_cen - _robot_size])
+            _return = np.array([_ch_pos[0] > _hor_cen - _robot_size,
+                                _ch_pos[0] < _hor_cen + _robot_size,
+                                _ch_pos[1] < _vert_cen + _robot_size,
+                                _ch_pos[1] > _vert_cen - _robot_size])
             return _return.all()
 
+        def pos_to_grid(_pos):
+            """Converts game space coordinates to world map grid coordinates."""
+            return int(_pos / self.world.size)
+
         if _mouse_click:
-            # Find the distance between the last known mouse position and find the
-            # points in a line between them
-            if self.last_mouse_pos != None:
-                _last_point_dis = utils.point_distance(self.last_mouse_pos[0], _pos[0],
-                                                       _pos[1], self.last_mouse_pos[1])
-            else:
-                _last_point_dis = 0
-            # If clicking on a button don't draw anything
-            if (_last_point_dis < 8 and world_editor_button_hover(_pos)) or _last_point_dis == 0:
-                _line = []
-            else:
-                _line = utils.line_between(self.last_mouse_pos[0],
-                                           self.last_mouse_pos[1],
-                                           _pos[0], _pos[1])
-            # Write to the grid map all the points on the line if not in the robot's spawn space
-            for _point in _line:
-                if not world_editor_centre_hover(_point):
-                    _grid_x = int(_point[0] / self.world.size)
-                    _grid_y = int(_point[1] / self.world.size)
-                    self.world.write_to_map(self.we_draw_mode,
-                                            _grid_x,
-                                            _grid_y)
-            self.last_mouse_pos = _pos
+            if self.slam.world_type == "Occupancy Grid" or not self.we_draw_mode:
+                # If in Occupancy Grid mode, find the distance between the last known mouse
+                # position and find the points in a line between them
+                if self.last_mouse_pos != None:
+                    _last_point_dis = utils.point_distance(self.last_mouse_pos[0], _pos[0],
+                                                           _pos[1], self.last_mouse_pos[1])
+                else:
+                    _last_point_dis = 0
+                # If clicking on a button don't draw anything
+                if (_last_point_dis < 8 and world_editor_button_hover(_pos)) or _last_point_dis == 0:
+                    _line = []
+                else:
+                    _line = utils.line_between(self.last_mouse_pos[0],
+                                               self.last_mouse_pos[1],
+                                               _pos[0], _pos[1])
+                # Write to the grid map all the points on the line if not in the spawn space
+                for _point in _line:
+                    if not world_editor_centre_hover(_point):
+                        self.world.write_to_map(self.we_draw_mode,
+                                                pos_to_grid(_point[0]),
+                                                pos_to_grid(_point[1]))
+                self.last_mouse_pos = _pos
+            elif self.slam.world_type == "Landmarks":
+                # If in landmark mode, only place one wall per click
+                if self.we_raise_click:
+                    if not world_editor_centre_hover(_pos):
+                        self.world.write_to_map(self.we_draw_mode,
+                                                pos_to_grid(_pos[0]),
+                                                pos_to_grid(_pos[1]))
+                        self.we_raise_click = False
 
         for i in range(len(self.world.grid)):
             for j in range(len(self.world.grid[0])):

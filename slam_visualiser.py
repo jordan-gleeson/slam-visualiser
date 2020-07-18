@@ -61,6 +61,7 @@ class Game():
                     self.gui.input(_event)
                 if _event.type == pygame.MOUSEBUTTONUP:
                     self.gui.last_mouse_pos = None
+                    self.gui.we_raise_click = True
                 if _event.type == pygame.KEYDOWN:
                     if _event.key == pygame.K_r:
                         self.gui.reset()
