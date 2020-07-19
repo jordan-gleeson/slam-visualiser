@@ -37,7 +37,6 @@ class Game():
         # Setup classes
         self.world = World(self.screen)
         self.robot = RobotControl(self.screen, self.world)
-        self.robot.update()
         self.slam = SLAM(self.screen, self.robot)
         self.gui = gui.GUI(self.screen, self.world, self.robot, self.slam)
 
@@ -72,6 +71,7 @@ class Game():
                 if self.gui.main_menu_state == 0:
                     self.state += 1
                     self.gui.setup_game(_world_edited)
+                    self.init_game()
                 elif self.gui.main_menu_state == 2:
                     self.state = 2
                     _world_edited = True
@@ -109,6 +109,9 @@ class Game():
 
         pygame.quit()
 
+    def init_game(self):
+        self.robot.robot.setup_lasers()
+        self.robot.update()
 
 class Robot(pygame.sprite.Sprite):
     """Sprite  the robot player object.
@@ -152,20 +155,29 @@ class Robot(pygame.sprite.Sprite):
         self.angle_ref = []
         self.new_sample = True
 
-        self.lasers = pygame.sprite.Group()
-        _lidar = pygame.math.Vector2()
-        _lidar.xy = (self.x_pos, self.y_pos)
         self.initial_laser_length = int(np.sqrt(
-            np.square(self.screen.get_width()) + np.square(self.screen.get_height())))
-        for i in range(self.sample_count):
-            _degree_multiplier = 360 / self.sample_count
-            _cur_angle = int(i * _degree_multiplier)
-            self.angle_ref.append(_cur_angle)
-            _laser = pygame.math.Vector2()
-            _laser.from_polar((self.initial_laser_length, _cur_angle))
-            _laser_sprite = Laser(self.screen, _lidar, _laser)
-            self.lasers.add(_laser_sprite)
-        self.lasers_draw = pygame.sprite.Group()
+                np.square(self.screen.get_width()) + np.square(self.screen.get_height())))
+
+    def setup_lasers(self):
+        if self.world.world_type == "Occupancy Grid":
+            self.lasers = pygame.sprite.Group()
+            _lidar = pygame.math.Vector2()
+            _lidar.xy = (self.x_pos, self.y_pos)
+            for i in range(self.sample_count):
+                _degree_multiplier = 360 / self.sample_count
+                _cur_angle = int(i * _degree_multiplier)
+                self.angle_ref.append(_cur_angle)
+                _laser = pygame.math.Vector2()
+                _laser.from_polar((self.initial_laser_length, _cur_angle))
+                _laser_sprite = OG_Laser(self.screen, _lidar, _laser)
+                self.lasers.add(_laser_sprite)
+            self.lasers_draw = pygame.sprite.Group()
+        elif self.world.world_type == "Landmarks":
+            _landmark_list = self.world.wall_list.sprites()
+            self.lasers = []
+            for _landmark in _landmark_list:
+                # print(_landmark.rect.center)
+                self.lasers.append(LM_Laser(self.screen, (self.x_pos, self.y_pos), _landmark.rect.center))
 
     def reset(self):
         """Reset the robots position and sensor data."""
@@ -184,19 +196,23 @@ class Robot(pygame.sprite.Sprite):
         self.rect.center = (self.x_pos, self.y_pos)
         self.hitbox.center = (self.x_pos, self.y_pos)
         self.mask = pygame.mask.from_surface(self.image)
-        self.lidar()
-        if self.draw_lidar:
-            for _point in self.point_cloud:
-                _coords = [int(_point[0] * np.cos(_point[1]) + self.x_pos),
-                           int(_point[0] * np.sin(_point[1]) + self.y_pos)]
-                pygame.draw.aaline(self.screen,
-                                   (255, 0, 0, 255),
-                                   (self.x_pos, self.y_pos),
-                                   _coords)
-                pygame.draw.circle(self.screen,
-                                   (0, 0, 255, 255),
-                                   _coords,
-                                   3)
+        if self.world.world_type == "Occupancy Grid":
+            self.lidar()
+            if self.draw_lidar:
+                for _point in self.point_cloud:
+                    _coords = [int(_point[0] * np.cos(_point[1]) + self.x_pos),
+                            int(_point[0] * np.sin(_point[1]) + self.y_pos)]
+                    pygame.draw.aaline(self.screen,
+                                    (255, 0, 0, 255),
+                                    (self.x_pos, self.y_pos),
+                                    _coords)
+                    pygame.draw.circle(self.screen,
+                                    (0, 0, 255, 255),
+                                    _coords,
+                                    3)
+        elif self.world.world_type == "Landmarks":
+            for i, _laser in enumerate(self.lasers):
+                _laser.update((self.x_pos, self.y_pos), self.world.wall_list.sprites()[i].rect.center)
 
     def toggle_lidar(self):
         """Toggle whether or not the lidar sensor is visualised."""
@@ -313,6 +329,9 @@ class Robot(pygame.sprite.Sprite):
             self.lidar_state = 0
         else:
             self.lidar_state += 1
+
+    def landmark_sensor(self):
+        pass
 
 
 class RobotControl():
@@ -556,7 +575,7 @@ class RobotControl():
         return None
 
 
-class Laser(pygame.sprite.Sprite):
+class OG_Laser(pygame.sprite.Sprite):
     """Sprite for the lidar sensor's laser beams.
 
     Handles the attributes of each laser. Uses invisible surfaces to calculate positional offsets
@@ -616,6 +635,35 @@ class Laser(pygame.sprite.Sprite):
         self.new_start = (self.origin.x + self.x_offset,
                           self.origin.y + self.y_offset)
         self.rect.topleft = self.new_start
+
+
+class LM_Laser():
+    """Laser object containing the attributes of each landmark sensor laser.
+
+    Attributes:
+        _p_screen: The main pygame screen surface.
+        _origin: A set of coordinates containing the robot's position.
+        _destination: A set of coordinates containing the location of the detected landmark.
+    """
+
+    def __init__(self, _p_screen, _origin, _destination):
+        self.origin = _origin
+        self.destination = _destination
+
+        self.screen = _p_screen
+        self.rect = pygame.draw.aaline(self.screen,
+                                       (255, 0, 0, 255),
+                                       _origin,
+                                       _destination)
+
+    def update(self, _origin, _destination):
+        """Update the laser's position."""
+        self.destination = _destination
+        self.origin = _origin
+        self.rect = pygame.draw.aaline(self.screen,
+                                       (255, 0, 0, 255),
+                                       self.origin,
+                                       self.destination)
 
 
 class Wall(pygame.sprite.Sprite):

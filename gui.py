@@ -217,7 +217,7 @@ class GUI():
         self.kill_main_menu()
 
         if not _world_edited:
-            self.world.write_map(self.world.world_type)
+            self.world.write_map()
         self.world.create_sprites()
 
     def kill_main_menu(self):
