@@ -113,6 +113,7 @@ class Game():
         self.robot.robot.setup_lasers()
         self.robot.update()
 
+
 class Robot(pygame.sprite.Sprite):
     """Sprite  the robot player object.
 
@@ -151,15 +152,16 @@ class Robot(pygame.sprite.Sprite):
         self.sample_rate = 5  # Hz
         self.lidar_state = 0
         self.sample_count = 32
-        self.point_cloud = [[0, 0] for _ in range(self.sample_count)]
         self.angle_ref = []
         self.new_sample = True
 
-        self.initial_laser_length = int(np.sqrt(
-                np.square(self.screen.get_width()) + np.square(self.screen.get_height())))
+        self.initial_laser_length = int(utils.point_distance(self.screen.get_width(), 0,
+                                                             self.screen.get_height(), 0))
 
     def setup_lasers(self):
+        """Setup the lasers coming from the robot depending on observation type."""
         if self.world.world_type == "Occupancy Grid":
+            self.point_cloud = [[0, 0] for _ in range(self.sample_count)]
             self.lasers = pygame.sprite.Group()
             _lidar = pygame.math.Vector2()
             _lidar.xy = (self.x_pos, self.y_pos)
@@ -173,11 +175,16 @@ class Robot(pygame.sprite.Sprite):
                 self.lasers.add(_laser_sprite)
             self.lasers_draw = pygame.sprite.Group()
         elif self.world.world_type == "Landmarks":
+            self.point_cloud = [[0, 0]
+                                for _ in range(self.world.landmark_count)]
             _landmark_list = self.world.wall_list.sprites()
             self.lasers = []
             for _landmark in _landmark_list:
-                # print(_landmark.rect.center)
-                self.lasers.append(LM_Laser(self.screen, (self.x_pos, self.y_pos), _landmark.rect.center))
+                _new_laser = LM_Laser(self.screen,
+                                      (self.x_pos, self.y_pos),
+                                      _landmark.rect.center)
+                self.angle_ref.append(_landmark.rect.center)
+                self.lasers.append(_new_laser)
 
     def reset(self):
         """Reset the robots position and sensor data."""
@@ -189,7 +196,12 @@ class Robot(pygame.sprite.Sprite):
                                   self.y_pos - (self.image_size[1] / 2),
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
-        self.point_cloud = [[0, 0] for _ in range(self.sample_count)]
+        if self.world.world_type == "Occupancy Grid":
+            self.point_cloud = [[0, 0]
+                                for _ in range(self.sample_count)]
+        elif self.world.world_type == "Landmarks":
+            self.point_cloud = [[0, 0]
+                                for _ in range(self.world.landmark_count)]
 
     def update(self):
         """Updates the position of the robot's rect, hitbox and mask."""
@@ -198,21 +210,19 @@ class Robot(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         if self.world.world_type == "Occupancy Grid":
             self.lidar()
-            if self.draw_lidar:
-                for _point in self.point_cloud:
-                    _coords = [int(_point[0] * np.cos(_point[1]) + self.x_pos),
-                            int(_point[0] * np.sin(_point[1]) + self.y_pos)]
-                    pygame.draw.aaline(self.screen,
-                                    (255, 0, 0, 255),
-                                    (self.x_pos, self.y_pos),
-                                    _coords)
-                    pygame.draw.circle(self.screen,
-                                    (0, 0, 255, 255),
-                                    _coords,
-                                    3)
         elif self.world.world_type == "Landmarks":
-            for i, _laser in enumerate(self.lasers):
-                _laser.update((self.x_pos, self.y_pos), self.world.wall_list.sprites()[i].rect.center)
+            self.landmark_sensor()
+        if self.draw_lidar:
+            for _point in self.point_cloud:
+                _coords = [int(_point[0] * np.cos(_point[1]) + self.x_pos),
+                           int(_point[0] * np.sin(_point[1]) + self.y_pos)]
+                pygame.draw.aaline(self.screen,
+                                   (255, 0, 0, 255),
+                                   (self.x_pos, self.y_pos),
+                                   _coords)
+                pygame.draw.circle(self.screen,
+                                   (0, 0, 255, 255),
+                                   _coords, 3)
 
     def toggle_lidar(self):
         """Toggle whether or not the lidar sensor is visualised."""
@@ -331,7 +341,10 @@ class Robot(pygame.sprite.Sprite):
             self.lidar_state += 1
 
     def landmark_sensor(self):
-        pass
+        for _laser in self.lasers:
+            _laser.update((self.x_pos, self.y_pos))
+            self.point_cloud[self.angle_ref.index(
+                _laser.destination)] = _laser.polar
 
 
 class RobotControl():
@@ -647,23 +660,21 @@ class LM_Laser():
     """
 
     def __init__(self, _p_screen, _origin, _destination):
-        self.origin = _origin
-        self.destination = _destination
-
         self.screen = _p_screen
-        self.rect = pygame.draw.aaline(self.screen,
-                                       (255, 0, 0, 255),
-                                       _origin,
-                                       _destination)
-
-    def update(self, _origin, _destination):
-        """Update the laser's position."""
         self.destination = _destination
+        self.update(_origin)
+
+    def update(self, _origin):
+        """Update the laser's position."""
         self.origin = _origin
-        self.rect = pygame.draw.aaline(self.screen,
-                                       (255, 0, 0, 255),
-                                       self.origin,
-                                       self.destination)
+        self.angle = self.find_angle(_origin, self.destination)
+        self.length = utils.point_distance(_origin[0], self.destination[0],
+                                           _origin[1], self.destination[1])
+        self.polar = (self.length, self.angle)
+
+    def find_angle(self, _origin, _destination):
+        return np.arctan2(_destination[1] - _origin[1],
+                          _destination[0] - _origin[0])
 
 
 class Wall(pygame.sprite.Sprite):
@@ -713,8 +724,9 @@ class World():
                      for __ in range(self.screen.get_size()[1] // self.size)]
         self.wall_list = pygame.sprite.Group()
         self.world_type = "Occupancy Grid"
+        self.landmark_count = 10
 
-    def write_map(self):
+    def write_map(self, _robot_size):
         """Draws the world map into an array of 1s and 0s."""
         if self.world_type == "Occupancy Grid":
             for i, _ in enumerate(self.grid):
@@ -727,11 +739,20 @@ class World():
                         if 20 < j < 30:
                             self.grid[i][j] = 1
         elif self.world_type == "Landmarks":
-            _landmark_count = 10
             _landmark_list = []
-            for i in range(_landmark_count):
-                _landmark_list.append([random.randrange(0, len(self.grid)), 
-                                       random.randrange(0, len(self.grid[0]))])
+            for i in range(self.landmark_count):
+                _r_point = [random.randrange(0, len(self.grid)),
+                            random.randrange(0, len(self.grid[0]))]
+                _hor_cen = self.screen.get_width() / 2
+                _vert_cen = self.screen.get_height() / 2
+                _return = np.array([_r_point[1] * self.size > _hor_cen - _robot_size / 2,
+                                    _r_point[1] * self.size < _hor_cen +
+                                    _robot_size / 2,
+                                    _r_point[0] * self.size < _vert_cen +
+                                    _robot_size / 2,
+                                    _r_point[0] * self.size > _vert_cen - _robot_size / 2])
+                if not _return.all():
+                    _landmark_list.append(_r_point)
             for _point in _landmark_list:
                 self.grid[_point[0]][_point[1]] = 1
 
