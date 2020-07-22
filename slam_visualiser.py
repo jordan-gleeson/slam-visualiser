@@ -820,9 +820,10 @@ class SLAM():
 
         # EKF Setup
         self.ekf_pos = np.zeros((3, 1))
-        self.pred_cov = np.eye(3)
+        self.ekf_cov = np.eye(3)
         self.pose_cov = np.diag([0.1, 0.1, np.deg2rad(10)])
-        self.meas_cov = np.diag([0.1, 0.1, 0])
+        self.meas_cov = np.diag([0.1, 0.1, 0.001])
+        self.lm_pos = np.array([np.vstack([0, 0, i]) for i in range(10)])
 
     def reset(self):
         """Reset the SLAM state."""
@@ -904,23 +905,63 @@ class SLAM():
     def ekf(self, _time_delta):
         # As per http://www.probabilistic-robotics.org/
         _control = self.robot.odo_velocity
-        if _control[1]:
+        if _control[1] == 0:
+            _control_ratio = 0
+        else:
+            # Prediction Step
             _control_ratio = _control[0] / _control[1]
-            _control_theta = _control[2]
-            _y_time = _control[1] * _time_delta
-            self.ekf_pos = self.ekf_pos + np.array([[-_control_ratio * np.sin(_control_theta) + _control_ratio * np.sin(_control_theta + _y_time)],
-                                                    [_control_ratio*np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],
-                                                    [_y_time]])
-            _control_jacobian = np.array([[1, 0, _control_ratio * np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],  # TODO: Check the name is right
-                                          [0, 1, _control_ratio * np.sin(_control_theta) - _control_ratio * np.sin(_control_theta + _y_time)],
-                                          [0, 0, 1]])
-            self.pred_cov = _control_jacobian @ self.pred_cov @ _control_jacobian.T + self.pose_cov
+        _control_theta = _control[2]
+        _y_time = _control[1] * _time_delta
+        _n_ekf_pos = self.ekf_pos + np.array([[-_control_ratio * np.sin(_control_theta) + _control_ratio * np.sin(_control_theta + _y_time)],
+                                                [_control_ratio*np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],
+                                                [_y_time]])
+        print("nekfpos", _n_ekf_pos)
+        _control_jacobian = np.array([[1, 0, _control_ratio * np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],  # TODO: Check the name is right
+                                        [0, 1, _control_ratio * np.sin(_control_theta) - _control_ratio * np.sin(_control_theta + _y_time)],
+                                        [0, 0, 1]])
+        _n_ekf_cov = _control_jacobian @ self.ekf_cov @ _control_jacobian.T + self.pose_cov
 
-            for i in range(20):
-                print()
-            print("ekf", self.ekf_pos)
-            print("pred jac", self.pred_cov)
-            print("vel", self.robot.odo_velocity)
+        # Correction Step
+        # print(self.robot.robot.point_cloud[0])
+        for i, _point in enumerate(self.robot.robot.point_cloud):
+            _lm_coords = np.vstack([int(_point[0] * np.cos(_point[1]) + self.odo_x),
+                          int(_point[0] * np.sin(_point[1]) + self.odo_y)])
+            # if i == 0:
+            #     print(_lm_coords)
+            # j = cit
+            # print(self.ekf_pos)
+            _lm_dis_coords = _lm_coords - self.ekf_pos[0:2]
+            # print(_delta.T, _delta)
+            # print(_lm_dis_coords)
+            # print((_lm_dis_coords.T @ _lm_dis_coords))
+            _lm_dis = np.sqrt((_lm_dis_coords.T @ _lm_dis_coords).item())
+            # print(_q)
+            _meas_dif = np.vstack([_lm_dis, 
+                                   np.arctan2(_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]) - _control[2], 
+                                   i])
+            _tay_jac = (1 / np.power(_lm_dis, 2)) * np.array([[_lm_dis * _lm_dis_coords.T[0][0],  -1 * _lm_dis * _lm_dis_coords.T[0][1], 0], 
+                                                        [_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0], -1], 
+                                                        [0, 0, 0]])
+            _S = _tay_jac @ _n_ekf_cov @ _tay_jac.T + self.meas_cov
+            # print(_S)
+            _K_gain = (_n_ekf_cov @ _tay_jac.T) @ np.linalg.inv(_S)
+            _innov = self.lm_pos[i] - _meas_dif
+            print("innov", _innov)
+            print("meas dif", _meas_dif)
+            
+            # if i == 0:
+            #     for j in range(5):
+            #         print()
+            print(_K_gain)
+            print("before", self.ekf_pos)
+            self.ekf_pos = _n_ekf_cov + (_K_gain @ _innov)
+            print("after", self.ekf_pos)
+            self.ekf_cov = (np.eye(3) - (_K_gain @ _tay_jac)) @ _n_ekf_cov
+            # print("ekf", self.ekf_pos)
+            # print("pred jac", self.ekf_cov)
+            # print("vel", self.robot.odo_velocity)
+        # time.sleep(0.1)
+        print(self.ekf_pos)
 
 
 if __name__ == '__main__':
