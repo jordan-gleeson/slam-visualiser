@@ -825,10 +825,8 @@ class SLAM():
     def odometry(self, _vel_vector):
         """Adds a random error to the positional data within a percentage tolerance."""
         try:
-            self.odo_x += random.uniform(_vel_vector[0] - _vel_vector[0] * self.odo_error,
-                                         _vel_vector[0] + _vel_vector[0] * self.odo_error)
-            self.odo_y += random.uniform(_vel_vector[1] - _vel_vector[1] * self.odo_error,
-                                         _vel_vector[1] + _vel_vector[1] * self.odo_error)
+            self.odo_x += np.random.normal(_vel_vector[0], np.abs(_vel_vector[0]) * self.odo_error)
+            self.odo_y += np.random.normal(_vel_vector[1], np.abs(_vel_vector[1]) * self.odo_error)
             if len(self.odo_pos) > 1000:
                 self.odo_pos.pop(0)
             self.odo_pos.append([self.odo_x, self.odo_y])
