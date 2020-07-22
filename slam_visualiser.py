@@ -49,6 +49,10 @@ class Game():
         """Main game loop."""
         _playing_game = True
         _world_edited = False
+
+        # TEMP
+        self.world.world_type = "Landmarks"
+
         while _playing_game:
             _time_delta = self.clock.tick(30) / 1000.0
             self.screen.blit(self.background, (0, 0))
@@ -68,6 +72,8 @@ class Game():
 
             # Main Menu
             if self.state == 0:
+                # TEMP
+                self.gui.main_menu_state = 0
                 if self.gui.main_menu_state == 0:
                     self.state += 1
                     self.gui.setup_game(_world_edited)
@@ -87,6 +93,7 @@ class Game():
                 self.slam.update()
                 self.robot.update()
                 self.slam.odometry(self.robot.odo_velocity)
+                self.slam.ekf(_time_delta)
                 if self.robot.robot.new_sample:
                     self.slam.occupancy_grid()
                     self.robot.robot.new_sample = False
@@ -364,11 +371,11 @@ class RobotControl():
         self.world = _p_world
         # (+x velocity, +y velocity, velocity magnitude) pixels/tick
         self.velocity = [0, 0, 0]
-        self.odo_velocity = self.velocity
         self.max_velocity = 4
         self.acceleration = 0.5
         self.cur_keys = []
         self.angular_velocity = 6
+        self.odo_velocity = self.velocity
         self.dummy_screen = pygame.Surface(self.screen.get_size())
         self.collision_list = []
         self.recursion_depth = 0
@@ -460,8 +467,12 @@ class RobotControl():
         _pressed_keys = self.convert_key(_keys)
         if "RIGHT" in _pressed_keys:
             self.robot.angle -= self.angular_velocity
+            self.velocity[2] = -1 * self.angular_velocity
         if "LEFT" in _pressed_keys:
             self.robot.angle += self.angular_velocity
+            self.velocity[2] = self.angular_velocity
+        if not "RIGHT" in _pressed_keys and not "LEFT" in _pressed_keys:
+            self.velocity[2] = 0
 
         # Bind the robot.angle to remain < 180 and > -180.
         if self.robot.angle > 180:
@@ -471,8 +482,6 @@ class RobotControl():
 
         # Calculate the current magnitude of the velocity vector.
         _speed = self.acceleration * 2
-        self.velocity[2] = np.sqrt(
-            np.square(self.velocity[0]) + np.square(self.velocity[1]))
 
         # Calculate the axis velocity components according to the current direction and desired
         # speed.
@@ -481,11 +490,11 @@ class RobotControl():
         if "UP" in _pressed_keys:
             self.velocity[0] += self.acceleration * _x_vec
             self.velocity[1] += self.acceleration * _y_vec
-            self.velocity[2] = np.sqrt(
+            _tot_vel = np.sqrt(
                 np.square(self.velocity[0]) + np.square(self.velocity[1]))
             # Normalise the velocity vectors if the velocity's magnitude is greater than the
             # desired maximum velocity.
-            if self.velocity[2] > self.max_velocity:
+            if _tot_vel > self.max_velocity:
                 _divider = self.max_velocity / \
                     np.sqrt(
                         np.square(self.velocity[0]) + np.square(self.velocity[1]))
@@ -809,6 +818,12 @@ class SLAM():
         self.odo_error = 0.2
         self.odo_pos = []
 
+        # EKF Setup
+        self.ekf_pos = np.zeros((3, 1))
+        self.pred_cov = np.eye(3)
+        self.pose_cov = np.diag([0.1, 0.1, np.deg2rad(10)])
+        self.meas_cov = np.diag([0.1, 0.1, 0])
+
     def reset(self):
         """Reset the SLAM state."""
         self.grid = [[0.5 for _ in range(self.screen.get_size()[0] // self.grid_size)]
@@ -885,6 +900,27 @@ class SLAM():
                 pygame.draw.rect(self.screen,
                                  (255 * _alpha, 255 * _alpha, 255 * _alpha),
                                  _rect)
+
+    def ekf(self, _time_delta):
+        # As per http://www.probabilistic-robotics.org/
+        _control = self.robot.odo_velocity
+        if _control[1]:
+            _control_ratio = _control[0] / _control[1]
+            _control_theta = _control[2]
+            _y_time = _control[1] * _time_delta
+            self.ekf_pos = self.ekf_pos + np.array([[-_control_ratio * np.sin(_control_theta) + _control_ratio * np.sin(_control_theta + _y_time)],
+                                                    [_control_ratio*np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],
+                                                    [_y_time]])
+            _control_jacobian = np.array([[1, 0, _control_ratio * np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],  # TODO: Check the name is right
+                                          [0, 1, _control_ratio * np.sin(_control_theta) - _control_ratio * np.sin(_control_theta + _y_time)],
+                                          [0, 0, 1]])
+            self.pred_cov = _control_jacobian @ self.pred_cov @ _control_jacobian.T + self.pose_cov
+
+            for i in range(20):
+                print()
+            print("ekf", self.ekf_pos)
+            print("pred jac", self.pred_cov)
+            print("vel", self.robot.odo_velocity)
 
 
 if __name__ == '__main__':

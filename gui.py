@@ -130,7 +130,7 @@ class GUI():
         _slam_list = ["Occupancy Grid", "Landmarks"]
         self.slam_type_drop = pygui.elements.UIDropDownMenu(relative_rect=_slam_type_rect,
                                                             options_list=_slam_list,
-                                                            starting_option="Occupancy Grid",
+                                                            starting_option="Landmarks",
                                                             manager=self.manager,
                                                             object_id="setup_dropdown",
                                                             expansion_height_limit=len(_slam_list)*50)
