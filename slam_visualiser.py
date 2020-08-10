@@ -110,6 +110,9 @@ class Game():
             _fps = self.font.render(str(int(self.clock.get_fps())),
                                     True,
                                     pygame.Color('green'))
+            _fps = self.font.render(str(pygame.mouse.get_pos()),
+                                    True,
+                                    pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
             self.gui.update(_time_delta)
             pygame.display.update()
@@ -762,6 +765,7 @@ class World():
                                     _r_point[0] * self.size > _vert_cen - _robot_size / 2])
                 if not _return.all():
                     _landmark_list.append(_r_point)
+            print(np.array(_landmark_list) * self.size)
             for _point in _landmark_list:
                 self.grid[_point[0]][_point[1]] = 1
 
@@ -819,11 +823,12 @@ class SLAM():
         self.odo_pos = []
 
         # EKF Setup
-        self.ekf_pos = np.zeros((3, 1))
+        self.ekf_pos = np.vstack([self.odo_x, self.odo_y, 0])
         self.ekf_cov = np.eye(3)
         self.pose_cov = np.diag([0.1, 0.1, np.deg2rad(10)])
         self.meas_cov = np.diag([0.1, 0.1, 0.001])
-        self.lm_pos = np.array([np.vstack([0, 0, i]) for i in range(10)])
+        self.lm_pos = np.array([np.vstack([0., 0., i*1.0]) for i in range(10)])
+        self.ekf_first_run = True
 
     def reset(self):
         """Reset the SLAM state."""
@@ -913,55 +918,93 @@ class SLAM():
         _control_theta = _control[2]
         _y_time = _control[1] * _time_delta
         _n_ekf_pos = self.ekf_pos + np.array([[-_control_ratio * np.sin(_control_theta) + _control_ratio * np.sin(_control_theta + _y_time)],
-                                                [_control_ratio*np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],
-                                                [_y_time]])
-        print("nekfpos", _n_ekf_pos)
+                                              [_control_ratio*np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],
+                                              [_y_time]])
+        # print("nekfpos", _n_ekf_pos)
         _control_jacobian = np.array([[1, 0, _control_ratio * np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],  # TODO: Check the name is right
                                         [0, 1, _control_ratio * np.sin(_control_theta) - _control_ratio * np.sin(_control_theta + _y_time)],
                                         [0, 0, 1]])
+        print("nekfcov before", self.ekf_cov)
         _n_ekf_cov = _control_jacobian @ self.ekf_cov @ _control_jacobian.T + self.pose_cov
+        print("nekfcov after", _n_ekf_cov)
 
         # Correction Step
         # print(self.robot.robot.point_cloud[0])
+        _K_array = []
+        _innov_array = []
+        _tay_jac_array = []
         for i, _point in enumerate(self.robot.robot.point_cloud):
-            _lm_coords = np.vstack([int(_point[0] * np.cos(_point[1]) + self.odo_x),
-                          int(_point[0] * np.sin(_point[1]) + self.odo_y)])
+            _lm_coords = np.array([[int(_point[0] * np.cos(_point[1]) + self.odo_x)],
+                                   [int(_point[0] * np.sin(_point[1]) + self.odo_y)]])
             # if i == 0:
-            #     print(_lm_coords)
+            # print("lm coords", _lm_coords)
             # j = cit
-            # print(self.ekf_pos)
-            _lm_dis_coords = _lm_coords - self.ekf_pos[0:2]
+            # print("ekf_pos slice", self.ekf_pos[0:2])
+            # print("lm dis calc", _lm_coords, "-", self.ekf_pos[0:2])
+            _lm_dis_coords = _lm_coords - _n_ekf_pos[0:2]
             # print(_delta.T, _delta)
             # print(_lm_dis_coords)
-            # print((_lm_dis_coords.T @ _lm_dis_coords))
+            # print("lm_dis_corods1", _lm_dis_coords)
+            # print("lm_dis_coords", (_lm_dis_coords.T @ _lm_dis_coords))
             _lm_dis = np.sqrt((_lm_dis_coords.T @ _lm_dis_coords).item())
             # print(_q)
+            # print("lmdiscoords", _lm_dis_coords.T, "=", _lm_coords.T, [self.odo_x, self.odo_y])
             _meas_dif = np.vstack([_lm_dis, 
-                                   np.arctan2(_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]) - _control[2], 
+                                   np.arctan2(_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]) - _n_ekf_pos[2][0], 
                                    i])
+            # print("tay_jac1", [_lm_dis * _lm_dis_coords.T[0][0],  -1 * _lm_dis * _lm_dis_coords.T[0][1], 0])
+            # print("tay_jac2", [_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0], -1])
             _tay_jac = (1 / np.power(_lm_dis, 2)) * np.array([[_lm_dis * _lm_dis_coords.T[0][0],  -1 * _lm_dis * _lm_dis_coords.T[0][1], 0], 
-                                                        [_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0], -1], 
-                                                        [0, 0, 0]])
+                                                              [_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0], -1 * np.power(_lm_dis, 2)], 
+                                                              [0, 0, 0]])
             _S = _tay_jac @ _n_ekf_cov @ _tay_jac.T + self.meas_cov
             # print(_S)
+            # print("n ekf cov", _n_ekf_cov)
+            # print("S", _S)
+            # print("Determinate:", np.linalg.det(_S))
             _K_gain = (_n_ekf_cov @ _tay_jac.T) @ np.linalg.inv(_S)
-            _innov = self.lm_pos[i] - _meas_dif
-            print("innov", _innov)
-            print("meas dif", _meas_dif)
+            # print("K", (_n_ekf_cov @ _tay_jac.T))
+            if self.ekf_first_run:
+                _innov = np.vstack([0, 0, 0])
+            else:
+                # print("Prev meas dif", i, self.lm_pos[i])
+                # print("Cur meas dif", i, _meas_dif)
+                _innov = self.lm_pos[i] - _meas_dif
+                # print("innov", _innov)
+            self.lm_pos[i] = _meas_dif
+            _K_array.append(_K_gain)
+            _innov_array.append(_innov)
+            _tay_jac_array.append(_tay_jac)
+            print()
+            # print("innov", _innov)
+            # print("meas dif", _meas_dif)
             
             # if i == 0:
             #     for j in range(5):
             #         print()
-            print(_K_gain)
-            print("before", self.ekf_pos)
-            self.ekf_pos = _n_ekf_cov + (_K_gain @ _innov)
-            print("after", self.ekf_pos)
-            self.ekf_cov = (np.eye(3) - (_K_gain @ _tay_jac)) @ _n_ekf_cov
+            # print("before", self.ekf_pos)
+            # print("k and innoov", (_K_gain @ _innov))
+        _K_innov_sum = 0
+        for i in range(len(_K_array)):
+            _K_innov_sum += _K_array[i] @ _innov_array[i]
+        # print("k innov sum", _K_innov_sum)
+        self.ekf_pos = _n_ekf_pos + _K_innov_sum
+        # print("after", self.ekf_pos)
+        _K_tay_sum = 0
+        for i in range(len(_K_array)):
+            _K_tay_sum += _K_array[i] @ _tay_jac_array[i]
+        # print("k tay sum", _K_tay_sum)
+        self.ekf_cov = (np.eye(3) - _K_tay_sum) @ _n_ekf_cov
+
+        self.ekf_first_run = False
             # print("ekf", self.ekf_pos)
             # print("pred jac", self.ekf_cov)
             # print("vel", self.robot.odo_velocity)
         # time.sleep(0.1)
+        # for i in range(10):
+        #     print()
         print(self.ekf_pos)
+        print()
 
 
 if __name__ == '__main__':
