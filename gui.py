@@ -380,6 +380,8 @@ class GUI():
                                   False, self.robot.truth_pos)
                 pygame.draw.lines(self.screen, (0, 0, 255),
                                   False, self.slam.odo_pos)
+                pygame.draw.lines(self.screen, (0, 255, 0),
+                                  False, self.slam.ekf_pos_draw)
             except ValueError:
                 pass
 
