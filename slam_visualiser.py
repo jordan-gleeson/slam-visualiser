@@ -916,14 +916,16 @@ class SLAM():
             # Prediction Step
             _control_ratio = _control[0] / _control[1]
         _control_theta = _control[2]
+        _prev_theta = self.ekf_pos[2].item()
         _y_time = _control[1] * _time_delta
-        _n_ekf_pos = self.ekf_pos + np.array([[-_control_ratio * np.sin(_control_theta) + _control_ratio * np.sin(_control_theta + _y_time)],
-                                              [_control_ratio*np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],
+        _n_ekf_pos = self.ekf_pos + np.array([[-_control_ratio * np.sin(_prev_theta) + _control_ratio * np.sin(_prev_theta + _y_time)],
+                                              [_control_ratio*np.cos(_prev_theta) - _control_ratio * np.cos(_prev_theta + _y_time)],
                                               [_y_time]])
         # print("nekfpos", _n_ekf_pos)
-        _control_jacobian = np.array([[1, 0, _control_ratio * np.cos(_control_theta) - _control_ratio * np.cos(_control_theta + _y_time)],  # TODO: Check the name is right
-                                        [0, 1, _control_ratio * np.sin(_control_theta) - _control_ratio * np.sin(_control_theta + _y_time)],
-                                        [0, 0, 1]])
+        print()
+        _control_jacobian = np.array([[1, 0, _control_ratio * np.cos(_prev_theta) - _control_ratio * np.cos(_prev_theta + _y_time)],  # TODO: Check the name is right
+                                      [0, 1, _control_ratio * np.sin(_prev_theta) - _control_ratio * np.sin(_prev_theta + _y_time)],
+                                      [0, 0, 1]])
         print("nekfcov before", self.ekf_cov)
         _n_ekf_cov = _control_jacobian @ self.ekf_cov @ _control_jacobian.T + self.pose_cov
         print("nekfcov after", _n_ekf_cov)
