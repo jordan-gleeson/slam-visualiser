@@ -781,7 +781,7 @@ class World():
                 if not _return.all():
                     _landmark_list.append(_r_point)
             print(np.array(_landmark_list) * self.size)
-            input()
+            # input()
             for _point in _landmark_list:
                 self.grid[_point[0]][_point[1]] = 1
 
@@ -936,21 +936,31 @@ class SLAM():
         _ang_vel = _control[2]
         _prev_theta = self.ekf_pos[2].item()
         _n_ekf_pos = self.ekf_pos
+        if _ang_vel == 0:
+            _control_ratio = 1
+        else:
+            _control_ratio = _trans_vel / _ang_vel
         _time_delta = 1
-        _predict_move = np.array([[_time_delta * -np.cos(_prev_theta), 0],
+        _predict_move = np.array([[_time_delta * np.cos(_prev_theta), 0],
                                   [_time_delta * -np.sin(_prev_theta), 0],
                                   [0, _time_delta]]) @ np.vstack([_trans_vel, _ang_vel])
         _n_ekf_pos[0:3] = (np.eye(3, dtype=float) @
                            self.ekf_pos[0:3]) + _predict_move
+        
 
         _filter = np.hstack((np.eye(3), np.zeros(
             (3, int(len(self.ekf_pos) - 3)))))  # Fx
+        # x = np.vstack([-_control_ratio*np.sin(_prev_theta) + _control_ratio*np.sin(_prev_theta + _ang_vel),
+        #                                                    _control_ratio * np.cos(_prev_theta) - _control_ratio * np.cos(_prev_theta + _ang_vel),
+        #                                                    _ang_vel])
+        # _n_ekf_pos = self.ekf_pos + _filter.T @ x
+        
         y = np.array([[0, 0, -_time_delta * _trans_vel * np.sin(_prev_theta)],
                       [0, 0, _time_delta * _trans_vel * np.cos(_prev_theta)],
                       [0, 0, 0]], dtype=float)
-        # y = np.array([[0, 0, -_control_ratio * np.cos(_prev_theta) + _control_ratio * np.cos(_prev_theta + _y_time)],  # TODO: Check the name is right
-        #               [0, 0, -_control_ratio * np.sin(_prev_theta) + _control_ratio * np.sin(_prev_theta + _y_time)],  # G
-        #               [0, 0, 0]])
+        # y = np.array([[0, 0, -_control_ratio * np.cos(_prev_theta) + _control_ratio * np.cos(_prev_theta + _ang_vel)],  # TODO: Check the name is right
+        #               [0, 0, -_control_ratio * np.sin(_prev_theta) + _control_ratio * np.sin(_prev_theta + _ang_vel)],  # G
+        #               [0, 0, 0]], dtype=float)
         _control_jacobian = np.eye(len(_n_ekf_pos), dtype=float) + _filter.T @ y @ _filter
         # print("nekfcov before", self.ekf_cov)
         _n_ekf_cov = _control_jacobian @ self.ekf_cov @ _control_jacobian.T + \
@@ -969,6 +979,7 @@ class SLAM():
                 _n_ekf_pos = np.vstack((_n_ekf_pos, _lm_coords))
 
             _lm_dis_coords = _lm_coords - _n_ekf_pos[0:2]
+            _lm_combined = (_lm_dis_coords.T @ _lm_dis_coords).item()
             _lm_dis = np.sqrt((_lm_dis_coords.T @ _lm_dis_coords).item())
             _meas_dif = np.vstack([_lm_dis,
                                    normalise_angle(np.arctan2(_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]) - _n_ekf_pos[2][0])])
@@ -976,8 +987,8 @@ class SLAM():
             _lm_filter = np.vstack((np.hstack((np.eye(3), np.zeros((3, int((len(_n_ekf_pos) - 3)))))),
                                     np.hstack((np.zeros((2, 3)), np.zeros((2, 2 * i)),
                                                np.eye(2), np.zeros((2, int((len(_n_ekf_pos) - 3)) - 2 * (i + 1)))))))
-            _tay_jac = (1 / np.power(_lm_dis, 2)) * np.array([[-_lm_dis * _lm_dis_coords.T[0][0],  -_lm_dis * _lm_dis_coords.T[0][1], 0, _lm_dis * _lm_dis_coords.T[0][0], _lm_dis * _lm_dis_coords.T[0][1]],
-                                                              [_lm_dis_coords.T[0][1], -_lm_dis_coords.T[0][0], -np.power(_lm_dis, 2), -_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]]]) @ _lm_filter
+            _tay_jac = ((-1 / _lm_combined) * np.array([[-_lm_dis * _lm_dis_coords.T[0][0],  -_lm_dis * _lm_dis_coords.T[0][1], 0, _lm_dis * _lm_dis_coords.T[0][0], _lm_dis * _lm_dis_coords.T[0][1]],
+                                                               [_lm_dis_coords.T[0][1], -_lm_dis_coords.T[0][0], -_lm_combined, -_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]]])) @ _lm_filter
 
             _K_gain = (_n_ekf_cov @ _tay_jac.T) @ np.linalg.inv(
                 _tay_jac @ _n_ekf_cov @ _tay_jac.T + self.meas_cov[0:2, 0:2])
@@ -989,10 +1000,11 @@ class SLAM():
                 _innov[1][0] = normalise_angle(_innov[1][0])
             self.lm_pos[i] = _meas_dif
 
-            _n_ekf_pos = _n_ekf_pos + _K_gain @ _innov
+            _n_ekf_pos = _n_ekf_pos + (_K_gain @ _innov)
             _n_ekf_cov = (np.eye(len(_n_ekf_pos)) -
                           (_K_gain @ _tay_jac)) @ _n_ekf_cov
 
+        _n_ekf_pos[2] = normalise_angle(_n_ekf_pos[2])
         self.ekf_pos = _n_ekf_pos
 
         self.ekf_cov = _n_ekf_cov
@@ -1003,8 +1015,8 @@ class SLAM():
         for i in range(20):
             print()
         print()
-        print(self.ekf_pos[5:7])
-        self.ekf_pos_draw.append(self.ekf_pos[0:2].T[0])
+        print(self.ekf_pos[0:3])
+        self.ekf_pos_draw.append(self.ekf_pos[0:2].T[0].tolist())
 
 
 if __name__ == '__main__':
