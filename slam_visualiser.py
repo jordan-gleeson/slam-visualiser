@@ -387,6 +387,7 @@ class RobotControl():
         self.truth_pos = []
 
         self.count = 0  # TODO: Remove
+        self.round = 5
 
     def reset(self):
         """Reset the robot's attributes, including position and velocities."""
@@ -437,8 +438,11 @@ class RobotControl():
                 self.velocity[0] = 0
 
         # Update robot position according to the velocity vector.
+        b1 = self.robot.x_pos
+        b2 = self.robot.y_pos
         self.robot.x_pos += self.velocity[0]
         self.robot.y_pos += self.velocity[1]
+        print("PS1", [b1, b2], [self.robot.x_pos, self.robot.y_pos])
         self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
         self.odo_velocity = self.velocity
         if len(self.truth_pos) > 1000:
@@ -475,6 +479,7 @@ class RobotControl():
         # self.count += 1
         # _right = [1, 2, 3, 6, 7, 8]
         _pressed_keys.append("UP")  # TODO: Remove
+        _pressed_keys.append("RIGHT")
         # if self.count in _right:
         #     _pressed_keys.append("RIGHT")
         # if self.count % 4 == 0:
@@ -490,20 +495,23 @@ class RobotControl():
             self.velocity[2] = self.angular_velocity
         if not "RIGHT" in _pressed_keys and not "LEFT" in _pressed_keys:
             self.velocity[2] = 0
+        self.robot.angle = round(self.robot.angle, self.round)
 
         # Bind the robot.angle to remain < 180 and > -180.
-        if self.robot.angle > 180:
-            self.robot.angle = -180 + (self.robot.angle - 180)
-        elif self.robot.angle < -180:
-            self.robot.angle = 180 + (self.robot.angle + 180)
+        if self.robot.angle > np.radians(180):
+            self.robot.angle = -np.radians(180) + (self.robot.angle - np.radians(180))
+        elif self.robot.angle < -np.radians(180):
+            self.robot.angle = np.radians(180) + (self.robot.angle + np.radians(180))
 
         # Calculate the current magnitude of the velocity vector.
         _speed = self.acceleration * 2
 
         # Calculate the axis velocity components according to the current direction and desired
         # speed.
-        _x_vec = np.cos(-1 * self.robot.angle) * _speed
-        _y_vec = np.sin(-1 * self.robot.angle) * _speed
+        print("CS1", self.robot.angle, np.cos(1 * self.robot.angle), -np.sin(1 * self.robot.angle))
+        _old_vel = copy.deepcopy(self.velocity)
+        _x_vec = np.cos(1 * self.robot.angle) * _speed
+        _y_vec = -np.sin(1 * self.robot.angle) * _speed
         if "UP" in _pressed_keys:
             self.velocity[0] += self.acceleration * _x_vec
             self.velocity[1] += self.acceleration * _y_vec
@@ -517,6 +525,7 @@ class RobotControl():
                         np.square(self.velocity[0]) + np.square(self.velocity[1]))
                 self.velocity[0] = _divider * self.velocity[0]
                 self.velocity[1] = _divider * self.velocity[1]
+        print("Vel dif", np.array(_old_vel) - np.array(self.velocity))
 
     def convert_key(self, _keys):
         """Converts the pressed key information into a string array.
@@ -840,7 +849,8 @@ class SLAM():
 
         # EKF Setup
         self.ekf_pos = np.vstack(
-            [self.odo_x, self.odo_y, self.robot.robot.angle])
+            [self.robot.robot.x_pos, self.robot.robot.y_pos, self.robot.robot.angle])
+        print("setup", self.ekf_pos)
         self.ekf_cov = np.eye(3)
         self.pose_cov = np.diag([0.1, 0.1, np.deg2rad(10)])
         self.meas_cov = np.diag([0.1, 0.1])
@@ -929,23 +939,30 @@ class SLAM():
 
     def ekf(self, _time_delta):
         def normalise_angle(_angle):
-            return (_angle + np.pi) % (2 * np.pi) - np.pi
+            return np.array(round(((_angle + np.pi) % (2 * np.pi) - np.pi).item(), self.robot.round))
         # As per http://www.probabilistic-robotics.org/
         _control = self.robot.odo_velocity
         _trans_vel = np.sqrt(np.square(_control[0]) + np.square(_control[1]))
         _ang_vel = _control[2]
         _prev_theta = self.ekf_pos[2].item()
-        _n_ekf_pos = self.ekf_pos
+        _n_ekf_pos = copy.deepcopy(self.ekf_pos)
         if _ang_vel == 0:
             _control_ratio = 1
         else:
             _control_ratio = _trans_vel / _ang_vel
         _time_delta = 1
-        _predict_move = np.array([[_time_delta * np.cos(_prev_theta), 0],
-                                  [_time_delta * -np.sin(_prev_theta), 0],
+        _new_angle = round(_prev_theta + _ang_vel, self.robot.round)
+        c = np.cos(_new_angle)
+        s = -np.sin(_new_angle)
+        print("CS2", _new_angle, c, s)
+        _predict_move = np.array([[_time_delta * c, 0],
+                                  [_time_delta * s, 0],
                                   [0, _time_delta]]) @ np.vstack([_trans_vel, _ang_vel])
         _n_ekf_pos[0:3] = (np.eye(3, dtype=float) @
                            self.ekf_pos[0:3]) + _predict_move
+        print("PS2", [self.ekf_pos[0][0], self.ekf_pos[1][0]], [_n_ekf_pos[0][0], _n_ekf_pos[1][0]])
+        print("Vel dif2", _n_ekf_pos - self.ekf_pos)
+        _n_ekf_pos[2][0] = round(_n_ekf_pos[2][0], self.robot.round)
         
 
         _filter = np.hstack((np.eye(3), np.zeros(
@@ -968,41 +985,41 @@ class SLAM():
         # print("nekfcov after", _n_ekf_cov)
 
         # Correction Step
-        for i, _point in enumerate(self.robot.robot.point_cloud):
-            _lm_coords = np.array([[int(_point[0] * np.cos(_point[1]) + _n_ekf_pos[0])],
-                                   [int(_point[0] * np.sin(_point[1]) + _n_ekf_pos[1])]])
-            if self.ekf_first_run:
-                # Extand state and covariance matrices
+        # for i, _point in enumerate(self.robot.robot.point_cloud):
+        #     _lm_coords = np.array([[int(_point[0] * np.cos(_point[1]) + _n_ekf_pos[0])],
+        #                            [int(_point[0] * np.sin(_point[1]) + _n_ekf_pos[1])]])
+        #     if self.ekf_first_run:
+        #         # Extand state and covariance matrices
 
-                _n_ekf_cov = np.vstack((np.hstack((_n_ekf_cov, np.zeros((len(_n_ekf_pos), 2)))),
-                                        np.hstack((np.zeros((2, len(_n_ekf_pos))), np.eye(2)))))
-                _n_ekf_pos = np.vstack((_n_ekf_pos, _lm_coords))
+        #         _n_ekf_cov = np.vstack((np.hstack((_n_ekf_cov, np.zeros((len(_n_ekf_pos), 2)))),
+        #                                 np.hstack((np.zeros((2, len(_n_ekf_pos))), np.eye(2)))))
+        #         _n_ekf_pos = np.vstack((_n_ekf_pos, _lm_coords))
 
-            _lm_dis_coords = _lm_coords - _n_ekf_pos[0:2]
-            _lm_combined = (_lm_dis_coords.T @ _lm_dis_coords).item()
-            _lm_dis = np.sqrt((_lm_dis_coords.T @ _lm_dis_coords).item())
-            _meas_dif = np.vstack([_lm_dis,
-                                   normalise_angle(np.arctan2(_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]) - _n_ekf_pos[2][0])])
+        #     _lm_dis_coords = _lm_coords - _n_ekf_pos[0:2]
+        #     _lm_combined = (_lm_dis_coords.T @ _lm_dis_coords).item()
+        #     _lm_dis = np.sqrt((_lm_dis_coords.T @ _lm_dis_coords).item())
+        #     _meas_dif = np.vstack([_lm_dis,
+        #                            normalise_angle(np.arctan2(_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]) - _n_ekf_pos[2][0])])
 
-            _lm_filter = np.vstack((np.hstack((np.eye(3), np.zeros((3, int((len(_n_ekf_pos) - 3)))))),
-                                    np.hstack((np.zeros((2, 3)), np.zeros((2, 2 * i)),
-                                               np.eye(2), np.zeros((2, int((len(_n_ekf_pos) - 3)) - 2 * (i + 1)))))))
-            _tay_jac = ((-1 / _lm_combined) * np.array([[-_lm_dis * _lm_dis_coords.T[0][0],  -_lm_dis * _lm_dis_coords.T[0][1], 0, _lm_dis * _lm_dis_coords.T[0][0], _lm_dis * _lm_dis_coords.T[0][1]],
-                                                               [_lm_dis_coords.T[0][1], -_lm_dis_coords.T[0][0], -_lm_combined, -_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]]])) @ _lm_filter
+        #     _lm_filter = np.vstack((np.hstack((np.eye(3), np.zeros((3, int((len(_n_ekf_pos) - 3)))))),
+        #                             np.hstack((np.zeros((2, 3)), np.zeros((2, 2 * i)),
+        #                                        np.eye(2), np.zeros((2, int((len(_n_ekf_pos) - 3)) - 2 * (i + 1)))))))
+        #     _tay_jac = ((-1 / _lm_combined) * np.array([[-_lm_dis * _lm_dis_coords.T[0][0],  -_lm_dis * _lm_dis_coords.T[0][1], 0, _lm_dis * _lm_dis_coords.T[0][0], _lm_dis * _lm_dis_coords.T[0][1]],
+        #                                                        [_lm_dis_coords.T[0][1], -_lm_dis_coords.T[0][0], -_lm_combined, -_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]]])) @ _lm_filter
 
-            _K_gain = (_n_ekf_cov @ _tay_jac.T) @ np.linalg.inv(
-                _tay_jac @ _n_ekf_cov @ _tay_jac.T + self.meas_cov[0:2, 0:2])
+        #     _K_gain = (_n_ekf_cov @ _tay_jac.T) @ np.linalg.inv(
+        #         _tay_jac @ _n_ekf_cov @ _tay_jac.T + self.meas_cov[0:2, 0:2])
 
-            if self.ekf_first_run:
-                _innov = np.vstack([0, 0])
-            else:
-                _innov = self.lm_pos[i] - _meas_dif
-                _innov[1][0] = normalise_angle(_innov[1][0])
-            self.lm_pos[i] = _meas_dif
+        #     if self.ekf_first_run:
+        #         _innov = np.vstack([0, 0])
+        #     else:
+        #         _innov = self.lm_pos[i] - _meas_dif
+        #         _innov[1][0] = normalise_angle(_innov[1][0])
+        #     self.lm_pos[i] = _meas_dif
 
-            _n_ekf_pos = _n_ekf_pos + (_K_gain @ _innov)
-            _n_ekf_cov = (np.eye(len(_n_ekf_pos)) -
-                          (_K_gain @ _tay_jac)) @ _n_ekf_cov
+        #     _n_ekf_pos = _n_ekf_pos + (_K_gain @ _innov)
+        #     _n_ekf_cov = (np.eye(len(_n_ekf_pos)) -
+        #                   (_K_gain @ _tay_jac)) @ _n_ekf_cov
 
         _n_ekf_pos[2] = normalise_angle(_n_ekf_pos[2])
         self.ekf_pos = _n_ekf_pos
@@ -1012,9 +1029,13 @@ class SLAM():
         self.ekf_first_run = False
 
         # time.sleep(0.1)
-        for i in range(20):
+        for i in range(10):
             print()
         print()
+        print("Angle", self.robot.robot.angle, self.ekf_pos[2])
+        print("Velocity", np.sqrt(self.robot.velocity[0]**2 +self.robot.velocity[1]**2), _trans_vel)
+        print("Resulting Pos", [self.robot.robot.x_pos, self.robot.robot.y_pos], [self.ekf_pos[0][0], self.ekf_pos[1][0]])
+        print("Pos difference", self.robot.robot.x_pos - self.ekf_pos[0][0], self.robot.robot.y_pos - self.ekf_pos[1][0])
         print(self.ekf_pos[0:3])
         self.ekf_pos_draw.append(self.ekf_pos[0:2].T[0].tolist())
 
