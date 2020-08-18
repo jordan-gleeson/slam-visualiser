@@ -93,7 +93,7 @@ class Game():
                 self.world.draw()
                 self.slam.update()
                 self.robot.update()
-                self.slam.odometry(self.robot.odo_velocity)
+                self.slam.odometry(self.robot.velocity)
                 self.slam.ekf(time.time() - self.prev_time)
                 self.prev_time = time.time()
                 if self.robot.robot.new_sample:
@@ -380,7 +380,6 @@ class RobotControl():
         self.acceleration = 0.5
         self.cur_keys = []
         self.angular_velocity = np.radians(6)
-        self.odo_velocity = self.velocity
         self.dummy_screen = pygame.Surface(self.screen.get_size())
         self.collision_list = []
         self.recursion_depth = 0
@@ -509,8 +508,6 @@ class RobotControl():
             # print("Decelerating", self.velocity)
             _deceleration = self.acceleration / 4
             self.velocity[0] -= _deceleration
-
-        self.odo_velocity = self.velocity
 
         # print("CS1", self.robot.angle, np.cos(1 * self.robot.angle), -np.sin(1 * self.robot.angle))
         # _old_vel = copy.deepcopy(self.velocity)
@@ -847,10 +844,11 @@ class SLAM():
         self.show_occupancy_grid = False
 
         # Odometry Setup
+        self.odo_velocity = self.robot.velocity
         self.odo_x = self.robot.robot.x_pos
         self.odo_y = self.robot.robot.y_pos
         self.odo_angle = self.robot.robot.angle
-        self.odo_error = 0.2
+        self.odo_error = np.array([0.2, np.radians(5)])
         self.odo_pos = []
 
         # EKF Setup
@@ -880,13 +878,17 @@ class SLAM():
     def odometry(self, _vel_vector):
         """Adds a random error to the positional data within a percentage tolerance."""
         # try:
-        _x_vel = _vel_vector[0] * np.cos(self.odo_angle)
-        _y_vel = _vel_vector[0] * - np.sin(self.odo_angle)
-        self.odo_x += np.random.normal(
-            _x_vel, np.abs(_x_vel) * self.odo_error)
-        self.odo_y += np.random.normal(
-            _y_vel, np.abs(_y_vel) * self.odo_error)
-        self.odo_angle += _vel_vector[1]
+        self.odo_velocity = np.vstack([np.random.normal(_vel_vector[0], 
+                                                        np.abs(_vel_vector[0]) * self.odo_error[0]),
+                                       np.random.normal(_vel_vector[1], 
+                                                        np.abs(_vel_vector[1]) * self.odo_error[1])])
+        _transformation = np.array([[np.cos(self.odo_angle), 0],
+                                    [-np.sin(self.odo_angle), 0],
+                                    [0, 1]]) @ np.vstack(self.odo_velocity[0:2])
+        _positions = (np.eye(3, dtype=float) @ np.vstack([self.odo_x, self.odo_y, self.odo_angle])) + _transformation
+        self.odo_x = _positions[0].item()
+        self.odo_y = _positions[1].item()
+        self.odo_angle = _positions[2].item()
         if len(self.odo_pos) > 1000:
             self.odo_pos.pop(0)
         self.odo_pos.append([self.odo_x, self.odo_y])
@@ -951,7 +953,7 @@ class SLAM():
         def normalise_angle(_angle):
             return np.array(round(((_angle + np.pi) % (2 * np.pi) - np.pi).item(), self.robot.round))
         # As per http://www.probabilistic-robotics.org/
-        _control = self.robot.odo_velocity
+        _control = self.odo_velocity
         _trans_vel = _control[0]
         _ang_vel = _control[1]
         _prev_theta = self.ekf_pos[2].item()
