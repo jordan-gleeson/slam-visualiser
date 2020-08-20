@@ -50,6 +50,7 @@ class Game():
         """Main game loop."""
         _playing_game = True
         _world_edited = False
+        x = 0
 
         # TEMP
         self.world.world_type = "Landmarks"
@@ -94,12 +95,29 @@ class Game():
                 self.slam.update()
                 self.robot.update()
                 self.slam.odometry(self.robot.velocity)
-                self.slam.ekf(time.time() - self.prev_time)
+                self.slam.ekf(time.time() - self.prev_time, _time_delta, self.gui)
                 self.prev_time = time.time()
                 if self.robot.robot.new_sample:
                     self.slam.occupancy_grid()
                     self.robot.robot.new_sample = False
 
+                _mp = pygame.mouse.get_pos()
+                _lm_coords = np.vstack(_mp)
+                _origin = [self.robot.robot.x_pos, self.robot.robot.y_pos]
+                _destination = list(_mp)
+                b = np.arctan2(_origin[1] - _destination[1],
+                               _destination[0] - _origin[0]) - self.robot.robot.angle
+                b = (b + np.pi) % (2 * np.pi) - np.pi
+                
+                _lm_dis_coords = _lm_coords - np.vstack(_origin) #_n_ekf_pos[0:2]
+                _lm_combined = (_lm_dis_coords.T @ _lm_dis_coords).item()
+                _lm_dis = np.sqrt(_lm_combined)
+
+                _meas_dif = np.vstack([_lm_dis,
+                                       np.arctan2(-_lm_dis_coords[1, 0], 
+                                                  _lm_dis_coords[0, 0]) - self.robot.robot.angle])
+                _meas_dif[1, 0] = np.array(np.degrees(round(((_meas_dif[1, 0] + np.pi) % (2 * np.pi) - np.pi).item(), self.robot.round)))
+                x = np.degrees(b), _meas_dif
             # World Editor
             elif self.state == 2:
                 if self.gui.main_menu_state == 1:
@@ -115,9 +133,13 @@ class Game():
             _fps = self.font.render(str(pygame.mouse.get_pos()),
                                     True,
                                     pygame.Color('green'))
+            _fps = self.font.render(str(x),
+                                    True,
+                                    pygame.Color('green'))
             self.screen.blit(_fps, (3, 3))
             self.gui.update(_time_delta)
             pygame.display.update()
+            pass
 
         pygame.quit()
 
@@ -151,14 +173,14 @@ class Robot(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.x_pos = float(self.screen.get_size()[0] / 2)
         self.y_pos = float(self.screen.get_size()[1] / 2)
-        self.angle = np.radians(90)
+        self.angle = np.radians(0)
         self.rect.center = (self.x_pos, self.y_pos)
         self.hitbox = pygame.Rect(self.x_pos - (self.image_size[0] / 2),
                                   self.y_pos - (self.image_size[1] / 2),
                                   self.image_size[0] + 2,
                                   self.image_size[1] + 2)
         self.mask = pygame.mask.from_surface(self.image)
-        self.draw_lidar = True
+        self.draw_lidar = False
 
         # Lidar setup
         self.sample_rate = 5  # Hz
@@ -187,7 +209,7 @@ class Robot(pygame.sprite.Sprite):
                 self.lasers.add(_laser_sprite)
             self.lasers_draw = pygame.sprite.Group()
         elif self.world.world_type == "Landmarks":
-            self.point_cloud = [[0, 0]
+            self.point_cloud = [np.array([0, 0])
                                 for _ in range(self.world.landmark_count)]
             _landmark_list = self.world.wall_list.sprites()
             self.lasers = []
@@ -212,7 +234,7 @@ class Robot(pygame.sprite.Sprite):
             self.point_cloud = [[0, 0]
                                 for _ in range(self.sample_count)]
         elif self.world.world_type == "Landmarks":
-            self.point_cloud = [[0, 0]
+            self.point_cloud = [np.array([0, 0])
                                 for _ in range(self.world.landmark_count)]
 
     def update(self):
@@ -226,8 +248,8 @@ class Robot(pygame.sprite.Sprite):
             self.landmark_sensor()
         if self.draw_lidar:
             for _point in self.point_cloud:
-                _coords = [int(_point[0] * np.cos(_point[1]) + self.x_pos),
-                           int(_point[0] * np.sin(_point[1]) + self.y_pos)]
+                _coords = np.array([int(_point[0] * np.cos(_point[1]) + self.x_pos),
+                                    int(_point[0] * np.sin(_point[1]) + self.y_pos)])
                 pygame.draw.aaline(self.screen,
                                    (255, 0, 0, 255),
                                    (self.x_pos, self.y_pos),
@@ -356,7 +378,7 @@ class Robot(pygame.sprite.Sprite):
         for _laser in self.lasers:
             _laser.update((self.x_pos, self.y_pos))
             self.point_cloud[self.angle_ref.index(
-                _laser.destination)] = _laser.polar
+                _laser.destination)] = np.array(_laser.polar)
 
 
 class RobotControl():
@@ -422,19 +444,22 @@ class RobotControl():
         # TODO: Refactor positions to be a numpy array
         # print("CS1", self.robot.angle, np.cos(self.robot.angle), -np.sin(self.robot.angle), self.velocity[1])
         _transformation = np.diag(self.stop) @ (np.array([[np.cos(self.robot.angle), 0],
-                                    [-np.sin(self.robot.angle), 0],
-                                    [0, 1]]) @ np.vstack(self.velocity[0:2]))
-        _positions = (np.eye(3, dtype=float) @ np.vstack([self.robot.x_pos, self.robot.y_pos, self.robot.angle])) + _transformation
+                                                          [-np.sin(self.robot.angle), 0],
+                                                          [0, 1]]) @ np.vstack(self.velocity[0:2]))
+        _positions = (np.eye(3, dtype=float) @ np.vstack(
+            [self.robot.x_pos, self.robot.y_pos, self.robot.angle])) + _transformation
         self.robot.x_pos = _positions[0].item()
         self.robot.y_pos = _positions[1].item()
         self.robot.angle = _positions[2].item()
 
         # Bind the robot.angle to remain < 180 and > -180.
         if self.robot.angle > np.radians(180):
-            self.robot.angle = -np.radians(180) + (self.robot.angle - np.radians(180))
+            self.robot.angle = - \
+                np.radians(180) + (self.robot.angle - np.radians(180))
         elif self.robot.angle < -np.radians(180):
-            self.robot.angle = np.radians(180) + (self.robot.angle + np.radians(180))
-        self.robot.angle = round(self.robot.angle, self.round)
+            self.robot.angle = np.radians(
+                180) + (self.robot.angle + np.radians(180))
+        # self.robot.angle = round(self.robot.angle, self.round)
 
         # print("PS1", [b1, b2], [self.robot.x_pos, self.robot.y_pos])
         self.robot.rect.center = (self.robot.x_pos, self.robot.y_pos)
@@ -455,7 +480,7 @@ class RobotControl():
         _pressed_keys = self.convert_key(_keys)
         # self.count += 1
         # _right = [1, 2, 3, 6, 7, 8]
-        # _pressed_keys.append("UP")  # TODO: Remove
+        _pressed_keys.append("UP")  # TODO: Remove
         # _pressed_keys.append("RIGHT")
         # if self.count in _right:
         #     _pressed_keys.append("RIGHT")
@@ -472,7 +497,7 @@ class RobotControl():
             self.velocity[1] = self.angular_velocity
         if not "RIGHT" in _pressed_keys and not "LEFT" in _pressed_keys:
             self.velocity[1] = 0
-        self.robot.angle = round(self.robot.angle, self.round)
+        # self.robot.angle = round(self.robot.angle, self.round)
 
         # Calculate the current magnitude of the velocity vector.
         # _speed = self.acceleration * 2
@@ -484,7 +509,7 @@ class RobotControl():
             self.velocity[0] += self.acceleration
             if self.velocity[0] > 4:
                 self.velocity[0] = 4.
-        else: # Decelerate the velocity vector if no forward input is received.
+        else:  # Decelerate the velocity vector if no forward input is received.
             # print("Decelerating", self.velocity)
             _deceleration = self.acceleration / 2
             self.velocity[0] -= _deceleration
@@ -498,7 +523,6 @@ class RobotControl():
             self.collision_list.pop(0)
         if not _collision_side:
             self.collision_list = []
-        print(self.robot.angle)
         self.stop = [1, 1, 1]
         if "TOP" in self.collision_list:
             if self.robot.angle > 0:
@@ -512,7 +536,6 @@ class RobotControl():
         if "LEFT" in self.collision_list:
             if self.robot.angle < np.radians(-90) or self.robot.angle > np.radians(90):
                 self.stop[0] = 0
-
 
     def convert_key(self, _keys):
         """Converts the pressed key information into a string array.
@@ -696,7 +719,7 @@ class LM_Laser():
         self.polar = (self.length, self.angle)
 
     def find_angle(self, _origin, _destination):
-        return np.arctan2(_destination[1] - _origin[1],
+        return np.arctan2(_origin[1] - _destination[1],
                           _destination[0] - _origin[0])
 
 
@@ -763,7 +786,22 @@ class World():
                             self.grid[i][j] = 1
         elif self.world_type == "Landmarks":
             _landmark_list = []
-            for i in range(self.landmark_count):
+            # _point1 = [25, 23]
+            # _point2 = [42, 23]
+            # _point3 = [27, 8]
+            # _temp = []
+            # for _point in utils.line_between(_point1[0], _point1[1], _point2[0], _point2[1]):
+            #     _temp.append(tuple(reversed(_point)))
+            # for _point in utils.line_between(_point2[0], _point2[1], _point3[0], _point3[1]):
+            #     _temp.append(tuple(reversed(_point)))
+            # for _point in utils.line_between(_point3[0], _point3[1], _point1[0], _point1[1]):
+            #     _temp.append(tuple(reversed(_point)))
+
+            # for i in _temp:
+            #     if i not in _landmark_list:
+            #         _landmark_list.append(i)
+            print(_landmark_list)
+            while len(_landmark_list) < self.landmark_count:
                 _r_point = [random.randrange(0, len(self.grid)),
                             random.randrange(0, len(self.grid[0]))]
                 _hor_cen = self.screen.get_width() / 2
@@ -776,10 +814,13 @@ class World():
                                     _r_point[0] * self.size > _vert_cen - _robot_size / 2])
                 if not _return.all():
                     _landmark_list.append(_r_point)
-            # print(np.array(_landmark_list) * self.size)
+            print(np.array(_landmark_list) * self.size)
             # input()
             for _point in _landmark_list:
+                # print(_point)
                 self.grid[_point[0]][_point[1]] = 1
+            self.landmark_count = len(_landmark_list)
+            # print(_landmark_list)
 
     def create_sprites(self):
         """Add sprites in the positions indicated by the self.grid array to a sprite group."""
@@ -841,11 +882,12 @@ class SLAM():
             [self.robot.robot.x_pos, self.robot.robot.y_pos, self.robot.robot.angle])
         # print("setup", self.ekf_pos)
         self.ekf_cov = np.eye(3)
-        self.pose_cov = np.diag([0.1, 0.1, np.deg2rad(10)])
-        self.meas_cov = np.diag([1, 1])
-        self.lm_pos = np.array([np.vstack([0., 0.]) for i in range(10)])
+        self.pose_cov = np.diag([0.5, 0.5, np.radians(10)]) ** 2
+        self.meas_cov = np.diag([0.5, 0.5]) ** 2
+        self.lm_pos = np.array([np.vstack([0., 0.]) for i in range(47)])
         self.ekf_first_run = True
         self.ekf_pos_draw = []
+        self.landmark_draw = []
 
     def reset(self):
         """Reset the SLAM state."""
@@ -863,14 +905,15 @@ class SLAM():
     def odometry(self, _vel_vector):
         """Adds a random error to the positional data within a percentage tolerance."""
         # try:
-        self.odo_velocity = np.vstack([np.random.normal(_vel_vector[0], 
+        self.odo_velocity = np.vstack([np.random.normal(_vel_vector[0],
                                                         np.abs(_vel_vector[0]) * self.odo_error[0]),
-                                       np.random.normal(_vel_vector[1], 
+                                       np.random.normal(_vel_vector[1],
                                                         np.abs(_vel_vector[1]) * self.odo_error[1])])
         _transformation = np.array([[np.cos(self.odo_angle), 0],
                                     [-np.sin(self.odo_angle), 0],
                                     [0, 1]]) @ np.vstack(self.odo_velocity[0:2])
-        _positions = (np.eye(3, dtype=float) @ np.vstack([self.odo_x, self.odo_y, self.odo_angle])) + _transformation
+        _positions = (np.eye(3, dtype=float) @ np.vstack(
+            [self.odo_x, self.odo_y, self.odo_angle])) + _transformation
         self.odo_x = _positions[0].item()
         self.odo_y = _positions[1].item()
         self.odo_angle = _positions[2].item()
@@ -934,99 +977,177 @@ class SLAM():
                                  (255 * _alpha, 255 * _alpha, 255 * _alpha),
                                  _rect)
 
-    def ekf(self, _time_delta):
+    def ekf(self, _time_delta, x, gui):
         def normalise_angle(_angle):
-            return np.array(round(((_angle + np.pi) % (2 * np.pi) - np.pi).item(), self.robot.round))
+            return np.array(((_angle + np.pi) % (2 * np.pi) - np.pi).item())
+        def calc_n_lm(x):
+            n = int((len(x) - 3) / 2)
+            return n
         # As per http://www.probabilistic-robotics.org/
         _control = self.odo_velocity
         _trans_vel = _control[0]
         _ang_vel = _control[1]
         _prev_theta = self.ekf_pos[2].item()
         _n_ekf_pos = copy.deepcopy(self.ekf_pos)
+        _n_ekf_cov = copy.deepcopy(self.ekf_cov)
         if _ang_vel == 0:
             _control_ratio = 1
         else:
             _control_ratio = _trans_vel / _ang_vel
         _time_delta = 1
-        _new_angle = round(_prev_theta, self.robot.round)
-        c = np.cos(_new_angle)
-        s = -np.sin(_new_angle)
         # print("CS2", _new_angle, c, s, _ang_vel)
         # print()
-        _predict_move = np.array([[_time_delta * c, 0],
-                                  [_time_delta * s, 0],
-                                  [0, _time_delta]]) @ np.vstack([_trans_vel, _ang_vel])
-        _n_ekf_pos[0:3] = (np.eye(3, dtype=float) @
-                           self.ekf_pos[0:3]) + _predict_move
-        # print("PS2", [self.ekf_pos[0][0], self.ekf_pos[1][0]], [_n_ekf_pos[0][0], _n_ekf_pos[1][0]])
-        # print("Vel dif2", _n_ekf_pos - self.ekf_pos)
-        _n_ekf_pos[2][0] = round(_n_ekf_pos[2][0], self.robot.round)
-        
-
+        # _filter = np.hstack((np.eye(3), np.zeros(
+        #     (3, int(len(self.ekf_pos[0:3]) - 3)))))  # Fx
         _filter = np.hstack((np.eye(3), np.zeros(
-            (3, int(len(self.ekf_pos) - 3)))))  # Fx
-        # x = np.vstack([-_control_ratio*np.sin(_prev_theta) + _control_ratio*np.sin(_prev_theta + _ang_vel),
-        #                                                    _control_ratio * np.cos(_prev_theta) - _control_ratio * np.cos(_prev_theta + _ang_vel),
-        #                                                    _ang_vel])
-        # _n_ekf_pos = self.ekf_pos + _filter.T @ x
-        
-        y = np.array([[0, 0, -_time_delta * _trans_vel * np.sin(_prev_theta)],
-                      [0, 0, _time_delta * _trans_vel * np.cos(_prev_theta)],
+                            (3, 2 * calc_n_lm(_n_ekf_pos[0:3])))))
+        y = np.array([[0, 0, _time_delta * _trans_vel * np.sin(_n_ekf_pos[2, 0])],
+                      [0, 0, _time_delta * _trans_vel * -np.cos(_n_ekf_pos[2, 0])],
                       [0, 0, 0]], dtype=float)
         # y = np.array([[0, 0, -_control_ratio * np.cos(_prev_theta) + _control_ratio * np.cos(_prev_theta + _ang_vel)],  # TODO: Check the name is right
         #               [0, 0, -_control_ratio * np.sin(_prev_theta) + _control_ratio * np.sin(_prev_theta + _ang_vel)],  # G
         #               [0, 0, 0]], dtype=float)
-        _control_jacobian = np.eye(len(_n_ekf_pos), dtype=float) + _filter.T @ y @ _filter
+        _control_jacobian = np.eye(3, dtype=float) + _filter @ y @ _filter.T
+
+        
+        _predict_move = np.array([[_time_delta * np.cos(_prev_theta), 0],
+                                  [_time_delta * -np.sin(_prev_theta), 0],
+                                  [0, _time_delta]]) @ np.vstack([_trans_vel, _ang_vel])
+        _n_ekf_pos[0:3] = (np.eye(3, dtype=float) @ self.ekf_pos[0:3]) + _predict_move
+        # print("PS2", [self.ekf_pos[0][0], self.ekf_pos[1][0]], [_n_ekf_pos[0][0], _n_ekf_pos[1][0]])
+        # print("Vel dif2", _n_ekf_pos - self.ekf_pos)
+        # _n_ekf_pos[2][0] = round(_n_ekf_pos[2][0], self.robot.round)
+
+        
+        
+        # print(_filter1)
+        # print(_filter)
+        # print()
+        # x = np.vstack([-_control_ratio*np.sin(_prev_theta) + _control_ratio*np.sin(_prev_theta + _ang_vel),
+        #                                                    _control_ratio * np.cos(_prev_theta) - _control_ratio * np.cos(_prev_theta + _ang_vel),
+        #                                                    _ang_vel])
+        # _n_ekf_pos = self.ekf_pos + _filter.T @ x
+        # print(_filter)
+        
         # print("nekfcov before", self.ekf_cov)
-        _n_ekf_cov = _control_jacobian @ self.ekf_cov @ _control_jacobian.T + \
+        _n_ekf_cov[0:3, 0:3] = _control_jacobian.T @ self.ekf_cov[0:3, 0:3] @ _control_jacobian + \
             _filter.T @ self.pose_cov @ _filter
         # print("nekfcov after", _n_ekf_cov)
-
+        self.landmark_draw = []
         # Correction Step
         for i, _point in enumerate(self.robot.robot.point_cloud):
-            _lm_coords = np.array([[int(_point[0] * np.cos(_point[1]) + _n_ekf_pos[0])],
-                                   [int(_point[0] * np.sin(_point[1]) + _n_ekf_pos[1])]])
+            # _point = list(_point)
+            _lm_coords = np.vstack([_point[0] * np.cos(_point[1]) + _n_ekf_pos[0],
+                                   _point[0] * -np.sin(_point[1]) + _n_ekf_pos[1]])
+            _point[1] = normalise_angle(_point[1] - self.robot.robot.angle)
+            # _lm_coords = np.array([[_point[0] * np.cos(_point[1]) + self.robot.robot.x_pos],
+            #                        [_point[0] * -np.sin(_point[1]) + self.robot.robot.y_pos]])
+            # self.landmark_draw.append(_lm_coords)
+            # gui.update(_time_delta)
+
             if self.ekf_first_run:
                 # Extand state and covariance matrices
+                xAug = np.vstack((_n_ekf_pos, _lm_coords))
+                PAug = np.vstack((np.hstack((_n_ekf_cov, np.zeros((len(_n_ekf_pos), 2)))),
+                                np.hstack((np.zeros((2, len(_n_ekf_pos))), np.eye(2)))))
+                _n_ekf_pos = xAug
+                _n_ekf_cov = PAug
+                # _n_ekf_cov = np.vstack((np.hstack((_n_ekf_cov, np.zeros((len(_n_ekf_pos), 2)))),
+                #                         np.hstack((np.zeros((2, len(_n_ekf_pos))), np.eye(2)))))
+                # _n_ekf_pos = np.vstack((_n_ekf_pos, _lm_coords))
+                # print("1", _n_ekf_pos[3, 0], _n_ekf_pos[4, 0])
+                # print("lmcoords", _lm_coords)
+                # TODO: Draw points based on newly added ot EKF
 
-                _n_ekf_cov = np.vstack((np.hstack((_n_ekf_cov, np.zeros((len(_n_ekf_pos), 2)))),
-                                        np.hstack((np.zeros((2, len(_n_ekf_pos))), np.eye(2)))))
-                _n_ekf_pos = np.vstack((_n_ekf_pos, _lm_coords))
-
-            _lm_dis_coords = _lm_coords - _n_ekf_pos[0:2]
+            _lm_dis_coords = _lm_coords - _n_ekf_pos[0:2] #np.vstack([self.robot.robot.x_pos, self.robot.robot.y_pos]) 
             _lm_combined = (_lm_dis_coords.T @ _lm_dis_coords).item()
-            _lm_dis = np.sqrt((_lm_dis_coords.T @ _lm_dis_coords).item())
+            _lm_dis = np.sqrt(_lm_combined)
+            
+            # print(_lm_coords)
+            # print(_lm_dis_coords)
+            # print(_lm_combined)
+            # print(_lm_dis)
+            
+            
             _meas_dif = np.vstack([_lm_dis,
-                                   normalise_angle(np.arctan2(_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]) - _n_ekf_pos[2][0])])
+                                   np.arctan2(-_lm_dis_coords[1, 0], _lm_dis_coords[0, 0]) - _n_ekf_pos[2][0]])
+            _meas_dif[1, 0] = normalise_angle(_meas_dif[1, 0])
+            # print(np.degrees(_meas_dif[1, 0]))
+            # print()
+            # _meas_vector = [int(_meas_dif[0][0] * np.cos(_meas_dif[1][0] + _n_ekf_pos[2, 0]) + _n_ekf_pos[0]),
+            #                 int(_meas_dif[0][0] * -np.sin(_meas_dif[1][0] + _n_ekf_pos[2, 0]) + _n_ekf_pos[1])]
+            # pygame.draw.line(self.screen, (0, 255, 0), [self.ekf_pos[0, 0], self.ekf_pos[1, 0]], _meas_vector)
 
-            _lm_filter = np.vstack((np.hstack((np.eye(3), np.zeros((3, int((len(_n_ekf_pos) - 3)))))),
-                                    np.hstack((np.zeros((2, 3)), np.zeros((2, 2 * i)),
-                                               np.eye(2), np.zeros((2, int((len(_n_ekf_pos) - 3)) - 2 * (i + 1)))))))
-            _tay_jac = ((-1 / _lm_combined) * np.array([[-_lm_dis * _lm_dis_coords.T[0][0],  -_lm_dis * _lm_dis_coords.T[0][1], 0, _lm_dis * _lm_dis_coords.T[0][0], _lm_dis * _lm_dis_coords.T[0][1]],
-                                                               [_lm_dis_coords.T[0][1], -_lm_dis_coords.T[0][0], -_lm_combined, -_lm_dis_coords.T[0][1], _lm_dis_coords.T[0][0]]])) @ _lm_filter
+            nLM = calc_n_lm(_n_ekf_pos)
+            _lm_filter = np.vstack([np.hstack((np.eye(3), np.zeros((3, 2 * nLM)))),
+                                    np.hstack((np.zeros((2, 3)), np.zeros((2, 2 * (i))),
+                                               np.eye(2), np.zeros((2, 2 * nLM - 2 * (i+1)))))])
+            # _lm_filter = np.vstack((np.hstack((np.eye(3), np.zeros((3, int((len(_n_ekf_pos) - 3)))))),
+            #                         np.hstack((np.zeros((2, 3)), np.zeros((2, 2 * i)),
+            #                                    np.eye(2), np.zeros((2, int((len(_n_ekf_pos) - 3)) - 2 * (i + 1)))))))
+            # print(_lm_filter)
+            # print(_lm_filter2)
+            # print()
+            _tay_jac = ((1 / _lm_combined) * np.array([[-_lm_dis * _lm_dis_coords.T[0][0],
+                                                         -_lm_dis * _lm_dis_coords.T[0][1],
+                                                         0,
+                                                         _lm_dis * _lm_dis_coords.T[0][0],
+                                                         _lm_dis * _lm_dis_coords.T[0][1]],
+                                                        [_lm_dis_coords.T[0][1],
+                                                         -_lm_dis_coords.T[0][0],
+                                                         -_lm_combined,
+                                                         -_lm_dis_coords.T[0][1],
+                                                         _lm_dis_coords.T[0][0]]])) @ _lm_filter
 
             _K_gain = (_n_ekf_cov @ _tay_jac.T) @ np.linalg.inv(
                 _tay_jac @ _n_ekf_cov @ _tay_jac.T + self.meas_cov[0:2, 0:2])
 
-            if self.ekf_first_run:
-                _innov = np.vstack([0, 0])
-            else:
-                _innov = self.lm_pos[i] - _meas_dif
-                _innov[1][0] = normalise_angle(_innov[1][0])
-            self.lm_pos[i] = _meas_dif
-
+            # if self.ekf_first_run:
+            #     _innov = np.vstack([0, 0])
+            # else:
+            # print(np.vstack(_point), _meas_dif)
+            # _angle_point = np.vstack([_point[0], normalise_angle(_point[1] + self.robot.robot.angle)])
+            _innov = np.vstack(_point) - _meas_dif
+            
+            _innov[1, 0] = normalise_angle(_innov[1, 0])
+            # print(_innov)
+            # self.lm_pos[i] = _meas_dif
+            # print("innov", _innov[0, 0], np.degrees(_innov[1, 0]))
+            # print([_n_ekf_pos[i*2+3, 0], _n_ekf_pos[i*2+3+1, 0]], [_n_ekf_pos[i*2+3, 0], _n_ekf_pos[i*2+3+1, 0] - _innov])
+            # print([self.robot.robot.x_pos + _point[0] * np.cos(_point[1]), 
+            #        self.robot.robot.y_pos + _point[0] * np.sin(_point[1])], 
+            #        [_n_ekf_pos[0, 0] + _meas_dif[0, 0] * np.cos(_meas_dif[1, 0]), 
+            #         _n_ekf_pos[1, 0] + _meas_dif[0, 0] * np.sin(_meas_dif[1, 0])])
+            if not self.ekf_first_run:
+                pygame.draw.line(self.screen, (255, 0, 0), 
+                                 [self.robot.robot.x_pos + _point[0] * np.cos(_point[1] + self.robot.robot.angle), 
+                                  self.robot.robot.y_pos + _point[0] * -np.sin(_point[1] + self.robot.robot.angle)], 
+                                 [_n_ekf_pos[0, 0] + _meas_dif[0, 0] * np.cos(_meas_dif[1, 0]), 
+                                  _n_ekf_pos[1, 0] + _meas_dif[0, 0] * -np.sin(_meas_dif[1, 0])])
+            # print(_K_gain)
             _n_ekf_pos = _n_ekf_pos + (_K_gain @ _innov)
             _n_ekf_cov = (np.eye(len(_n_ekf_pos)) -
                           (_K_gain @ _tay_jac)) @ _n_ekf_cov
-
-        _n_ekf_pos[2] = normalise_angle(_n_ekf_pos[2])
+            # print(_n_ekf_pos)
+            # print("2", _n_ekf_pos[3, 0], _n_ekf_pos[4, 0])
+            # self.landmark_draw.append([_n_ekf_pos[i*2][0], _n_ekf_pos[i*2+1][0]])
+            _n_ekf_pos[2] = normalise_angle(_n_ekf_pos[2])
         self.ekf_pos = _n_ekf_pos
-
+        _n_ekf_pos[2] = normalise_angle(_n_ekf_pos[2])
+        # print("3", _n_ekf_pos[3, 0], _n_ekf_pos[4, 0])
         self.ekf_cov = _n_ekf_cov
+        # print(self.ekf_cov)
 
         self.ekf_first_run = False
+    
+        # print("EKF_POS", _n_ekf_pos[0:2], np.degrees(_n_ekf_pos[2]))
+        # print()
+        # self.landmark_draw = []
+        for i in range(0, len(_n_ekf_pos) - 3, 2):
+            # print([_n_ekf_pos[i][0], _n_ekf_pos[i+1][0]])
+            self.landmark_draw.append([_n_ekf_pos[i+ 3, 0], _n_ekf_pos[i+3+1, 0]])
 
-        # time.sleep(0.1)
+        # time.sleep(1)
         # for i in range(10):
         #     print()
         # print()

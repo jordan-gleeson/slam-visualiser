@@ -382,6 +382,9 @@ class GUI():
                                   False, self.slam.odo_pos)
                 pygame.draw.lines(self.screen, (0, 255, 0),
                                   False, self.slam.ekf_pos_draw)
+                for _point in self.slam.landmark_draw:
+                    pygame.draw.circle(self.screen, (0, 255, 0), [int(_point[0]), int(_point[1])], 2)
+                pass
             except ValueError:
                 pass
 
