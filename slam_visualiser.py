@@ -130,10 +130,11 @@ class Robot(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         self.screen = _p_screen
         self.world = _p_world
-        self.image = pygame.image.load("roomba.png")
+        self.image = pygame.image.load("robot.png")
         self.robot_size = 50
         self.image = pygame.transform.smoothscale(self.image,
                                                   (self.robot_size, self.robot_size))
+        self.image = pygame.transform.rotate(self.image, 90)
         self.image_size = self.image.get_size()
         self.og_image = self.image.copy()
         self.rect = self.image.get_rect()
